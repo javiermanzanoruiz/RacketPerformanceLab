@@ -1,0 +1,687 @@
+import { useState, useRef, useEffect } from "react";
+
+const BLOCKS = [
+  { id:"movilidad", name:"Movilidad", tests:[
+    { id:"dorsiflexion", name:"Dorsiflexión de tobillo", desc:"Test rodilla a pared. Distancia máxima dedo gordo-pared sin despegar talón.", type:"numeric", unit:"cm", scoring:{ M:[{min:10,p:4},{min:8,p:3},{min:6,p:2},{min:4,p:1},{min:0,p:0}], F:[{min:10,p:4},{min:8,p:3},{min:6,p:2},{min:4,p:1},{min:0,p:0}] } },
+    { id:"flex_cadera", name:"Flexión de cadera activa", desc:"Decúbito supino, elevar pierna con rodilla extendida. Se valora ángulo y control lumbo-pélvico.", type:"numeric", unit:"°", scoring:{ M:[{min:90,p:4},{min:80,p:3},{min:70,p:2},{min:60,p:1},{min:0,p:0}], F:[{min:90,p:4},{min:80,p:3},{min:70,p:2},{min:60,p:1},{min:0,p:0}] } },
+    { id:"rot_toracica", name:"Rotación torácica en cuadrupedia", desc:"Cuadrupedia, mano detrás de la cabeza. Rotar abriendo codo hacia techo sin colapsar lumbar.", type:"operative", labels:["Muy limitada / dolorosa","Rotación claramente pobre","Limitación moderada","Ligera limitación mínima","Amplia, limpia, sin compensación"] },
+    { id:"rot_cadera", name:"Rotación de cadera (int/ext)", desc:"Posición 90/90. Movilidad interna y externa, simetría y limpieza del patrón.", type:"operative", labels:["Muy limitada / dolorosa","Limitación clara","Limitación moderada","Leve restricción o asimetría","Movilidad completa y equilibrada"] },
+    { id:"overhead_squat", name:"Overhead Squat", desc:"Brazos arriba, sentadilla profunda. Integración global: tobillo, cadera, torácica y hombro.", type:"operative", labels:["No consigue patrón funcional","Ejecución muy limitada","Compensaciones moderadas","Leves compensaciones","Ejecución limpia, buena profundidad"] }
+  ]},
+  { id:"core", name:"Core", tests:[
+    { id:"plancha_frontal", name:"Plancha frontal", desc:"Antebrazos y pies, cuerpo alineado. Sin hundir lumbar ni elevar cadera.", type:"numeric", unit:"seg", scoring:{ M:[{min:60,p:4},{min:45,p:3},{min:30,p:2},{min:15,p:1},{min:0,p:0}], F:[{min:60,p:4},{min:45,p:3},{min:30,p:2},{min:15,p:1},{min:0,p:0}] } },
+    { id:"plancha_lat_d", name:"Plancha lateral derecha", desc:"Apoyo antebrazo y pies, pelvis estable.", type:"numeric", unit:"seg", scoring:{ M:[{min:45,p:4},{min:30,p:3},{min:20,p:2},{min:10,p:1},{min:0,p:0}], F:[{min:45,p:4},{min:30,p:3},{min:20,p:2},{min:10,p:1},{min:0,p:0}] } },
+    { id:"plancha_lat_i", name:"Plancha lateral izquierda", desc:"Mismo criterio que derecha. Comparar siempre ambos lados.", type:"numeric", unit:"seg", scoring:{ M:[{min:45,p:4},{min:30,p:3},{min:20,p:2},{min:10,p:1},{min:0,p:0}], F:[{min:45,p:4},{min:30,p:3},{min:20,p:2},{min:10,p:1},{min:0,p:0}] } },
+    { id:"deadbug", name:"Deadbug", desc:"Decúbito supino. Zona media estable mientras mueve brazo/pierna contraria.", type:"operative", labels:["Incapaz de mantener control","Compensaciones claras","Control irregular","Pequeños fallos","Patrón perfecto, respiración controlada"] },
+    { id:"pallof", name:"Pallof Press", desc:"Banda o polea lateral. Presionar al frente sin rotar torso ni cadera.", type:"operative", labels:["No controla la carga","Dificultad clara","Rotación moderada","Mínima oscilación","Sin rotación ni compensación"] }
+  ]},
+  { id:"fuerza", name:"Fuerza", tests:[
+    { id:"cmj", name:"Salto vertical — CMJ", desc:"Countermovement Jump con manos en cadera.", type:"numeric", unit:"cm", scoring:{ M:[{min:40,p:4},{min:35,p:3},{min:30,p:2},{min:25,p:1},{min:0,p:0}], F:[{min:30,p:4},{min:25,p:3},{min:20,p:2},{min:15,p:1},{min:0,p:0}] } },
+    { id:"sentadilla", name:"Sentadilla", desc:"Patrón base de fuerza. Calidad técnica, profundidad y estabilidad.", type:"operative", labels:["Patrón deficiente / doloroso","Patrón pobre","Compensaciones moderadas","Leve fallo técnico","Patrón limpio, estable, buena profundidad"] },
+    { id:"handgrip_d", name:"Handgrip dominante", desc:"Dinamómetro, brazo al lado del cuerpo. Mejor de 2-3 intentos.", type:"numeric", unit:"kg", scoring:{ M:[{min:50,p:4},{min:45,p:3},{min:40,p:2},{min:35,p:1},{min:0,p:0}], F:[{min:32,p:4},{min:28,p:3},{min:24,p:2},{min:20,p:1},{min:0,p:0}] } },
+    { id:"handgrip_nd", name:"Handgrip no dominante", desc:"Misma posición. Diferencia >10% entre manos = vigilar.", type:"numeric", unit:"kg", scoring:{ M:[{min:47,p:4},{min:42,p:3},{min:37,p:2},{min:32,p:1},{min:0,p:0}], F:[{min:30,p:4},{min:26,p:3},{min:22,p:2},{min:18,p:1},{min:0,p:0}] } },
+    { id:"lanz_rotacional", name:"Lanzamiento rotacional", desc:"Balón medicinal desde posición estandarizada. Distancia, técnica y explosividad.", type:"operative", labels:["Muy bajo / técnica deficiente","Bajo","Medio","Bueno","Claramente explosivo, gran distancia"] }
+  ]},
+  { id:"agilidad", name:"Agilidad", tests:[
+    { id:"test_5105", name:"Test 5-10-5", desc:"5m a un lado, 10m al contrario, 5m vuelta. Cambio de dirección y frenada.", type:"numeric", unit:"seg", inverse:true, scoring:{ M:[{max:4.6,p:4},{max:4.9,p:3},{max:5.2,p:2},{max:5.5,p:1},{max:99,p:0}], F:[{max:5.0,p:4},{max:5.3,p:3},{max:5.6,p:2},{max:5.9,p:1},{max:99,p:0}] } },
+    { id:"reaccion", name:"Reacción simple", desc:"Respuesta rápida a estímulo simple. Fijar siempre la misma variante.", type:"operative", labels:["Muy lenta o inconsistente","Lenta","Media","Buena","Muy rápida y estable"] },
+    { id:"t_test", name:"T-Test adaptado", desc:"Desplazamiento multidireccional frontal-lateral-retroceso.", type:"numeric", unit:"seg", inverse:true, scoring:{ M:[{max:9.5,p:4},{max:10.2,p:3},{max:11.0,p:2},{max:11.8,p:1},{max:99,p:0}], F:[{max:10.5,p:4},{max:11.2,p:3},{max:12.0,p:2},{max:12.8,p:1},{max:99,p:0}] } },
+    { id:"line_hops", name:"Line Hops (15 seg)", desc:"Saltos rápidos adelante-atrás sobre línea. Contar contactos en 15 segundos.", type:"numeric", unit:"reps", scoring:{ M:[{min:40,p:4},{min:35,p:3},{min:30,p:2},{min:25,p:1},{min:0,p:0}], F:[{min:40,p:4},{min:35,p:3},{min:30,p:2},{min:25,p:1},{min:0,p:0}] } },
+    { id:"test_v", name:"Test en V (pádel)", desc:"Desplazamiento específico en patrón V. Benchmark interno.", type:"operative", labels:["Muy lenta o desorganizada","Lenta","Media","Buena","Muy rápida, limpia y específica"] }
+  ]},
+  { id:"capacidad", name:"Capacidad", tests:[
+    { id:"hrv", name:"HRV Status", desc:"Medición matutina. Comparar con tendencia basal.", type:"operative", labels:["Muy alterado / mala recuperación","Señal de fatiga","Zona media, cierta carga","Ligeramente por debajo del óptimo","Verde / readiness alta"] },
+    { id:"hrr", name:"HRR 1 min", desc:"Diferencia FC al terminar esfuerzo vs 1 min después.", type:"numeric", unit:"lpm", scoring:{ M:[{min:30,p:4},{min:25,p:3},{min:20,p:2},{min:15,p:1},{min:0,p:0}], F:[{min:30,p:4},{min:25,p:3},{min:20,p:2},{min:15,p:1},{min:0,p:0}] } },
+    { id:"energia", name:"Energía funcional", desc:"Observación en calentamiento: reactividad, viveza, ligereza.", type:"operative", labels:["Muy apagado o fatigado","Lento / pesado","Normal","Buen nivel","Explosivo, suelto, reactivo"] },
+    { id:"rec_series", name:"Recuperación entre series", desc:"Respiración, tiempo en recomponerse y calidad del siguiente esfuerzo.", type:"operative", labels:["Muy lenta, baja del rendimiento","Recuperación lenta","Recuperación media","Recupera bien","Recupera muy rápido y mantiene calidad"] },
+    { id:"rpe", name:"RPE Final", desc:"Percepción de esfuerzo 1-10 al terminar la sesión.", type:"numeric", unit:"RPE", inverse:true, scoring:{ M:[{max:6,p:4},{max:7,p:3},{max:8,p:2},{max:9,p:1},{max:10,p:0}], F:[{max:6,p:4},{max:7,p:3},{max:8,p:2},{max:9,p:1},{max:10,p:0}] } }
+  ]}
+];
+
+function calcScore(t, val, gender) {
+  const g = gender || 'M';
+  if (t.inverse) { for (const r of t.scoring[g]) { if (val <= r.max) return r.p; } return 0; }
+  else { for (const r of t.scoring[g]) { if (val >= r.min) return r.p; } return 0; }
+}
+
+function scoreLevel(s) {
+  if (s >= 80) return 'Muy buen nivel — Listo para rendir';
+  if (s >= 60) return 'Buen nivel con áreas mejorables';
+  if (s >= 40) return 'Nivel medio-bajo — Limitaciones relevantes';
+  if (s >= 20) return 'Deficiente — Varias áreas limitantes';
+  return 'Muy deficiente — Base insuficiente';
+}
+
+function scoreColor(s) {
+  if (s >= 80) return '#00ffaa';
+  if (s >= 60) return '#00AAFF';
+  if (s >= 40) return '#ffcc00';
+  return '#ff4466';
+}
+
+function ptsColor(p) {
+  if (p >= 3) return { bg: 'rgba(0,255,170,0.15)', color: '#00ffaa' };
+  if (p === 2) return { bg: 'rgba(255,204,0,0.15)', color: '#ffcc00' };
+  if (p === 1) return { bg: 'rgba(255,136,0,0.15)', color: '#ff8800' };
+  return { bg: 'rgba(255,68,102,0.15)', color: '#ff4466' };
+}
+
+const css = `
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #050810; }
+  .rpl { font-family: 'Inter', sans-serif; background: #050810; color: #e8f0ff; min-height: 100vh; }
+  .rpl input[type=number] { -moz-appearance: textfield; }
+  .rpl input::-webkit-outer-spin-button, .rpl input::-webkit-inner-spin-button { -webkit-appearance: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .spinner { width:40px;height:40px;border:3px solid rgba(0,170,255,0.2);border-top-color:#00AAFF;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 16px; }
+  .fade-in { animation: fadeIn 0.4s ease; }
+`;
+
+// RADAR SVG
+function RadarChart({ scores }) {
+  const cx = 150, cy = 150, r = 100;
+  const labels = scores.map(s => s.name);
+  const vals = scores.map(s => s.score / 20);
+  const n = labels.length;
+  const angle = i => (Math.PI * 2 * i / n) - Math.PI / 2;
+  const pt = (i, frac) => ({ x: cx + Math.cos(angle(i)) * r * frac, y: cy + Math.sin(angle(i)) * r * frac });
+
+  const gridLevels = [0.25, 0.5, 0.75, 1];
+  const gridPolygons = gridLevels.map(level => {
+    const pts = Array.from({length:n}, (_,i) => pt(i,level));
+    return pts.map(p => `${p.x},${p.y}`).join(' ');
+  });
+
+  const dataPoints = vals.map((v, i) => pt(i, v));
+  const dataPath = dataPoints.map(p => `${p.x},${p.y}`).join(' ');
+  const axes = Array.from({length:n}, (_,i) => ({ x2: pt(i,1).x, y2: pt(i,1).y }));
+  const labelPts = Array.from({length:n}, (_,i) => {
+    const p = pt(i, 1.22);
+    return { ...p, label: labels[i] };
+  });
+
+  return (
+    <svg viewBox="0 0 300 300" style={{width:'100%',maxWidth:320,display:'block',margin:'0 auto'}}>
+      {gridPolygons.map((pts,i) => (
+        <polygon key={i} points={pts} fill="none" stroke="rgba(0,170,255,0.15)" strokeWidth="1"/>
+      ))}
+      {axes.map((a,i) => (
+        <line key={i} x1={cx} y1={cy} x2={a.x2} y2={a.y2} stroke="rgba(0,170,255,0.2)" strokeWidth="1"/>
+      ))}
+      <polygon points={dataPath} fill="rgba(0,170,255,0.15)" stroke="#00AAFF" strokeWidth="2"/>
+      {dataPoints.map((p,i) => (
+        <circle key={i} cx={p.x} cy={p.y} r="4" fill="#00D4FF" stroke="#fff" strokeWidth="1.5"/>
+      ))}
+      {labelPts.map((p,i) => (
+        <text key={i} x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle"
+          fill="#e8f0ff" fontSize="10" fontFamily="Inter,sans-serif" fontWeight="600">{p.label}</text>
+      ))}
+      {[5,10,15,20].map((v,i) => (
+        <text key={i} x={cx+4} y={cy - r*gridLevels[i] - 2} fill="rgba(136,153,187,0.7)" fontSize="7" fontFamily="Inter">{v}</text>
+      ))}
+    </svg>
+  );
+}
+
+export default function App() {
+  const [page, setPage] = useState('dashboard');
+  const [players, setPlayers] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('rpl_players') || '[]'); } catch { return []; }
+  });
+  const [modal, setModal] = useState(false);
+  const [form, setForm] = useState({ name:'', sport:'Pádel', gender:'M', save:true });
+  const [currentPlayer, setCurrentPlayer] = useState(null);
+  const [evalData, setEvalData] = useState({});
+  const [obsData, setObsData] = useState({});
+  const [currentBlock, setCurrentBlock] = useState(0);
+  const [results, setResults] = useState(null);
+  const [aiReport, setAiReport] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiMsg, setAiMsg] = useState('Analizando resultados...');
+  const [expandedBlocks, setExpandedBlocks] = useState({});
+  const [histPlayer, setHistPlayer] = useState(null);
+
+  const savePlayers = (ps) => { setPlayers(ps); localStorage.setItem('rpl_players', JSON.stringify(ps)); };
+
+  // STATS
+  const totalEvals = players.reduce((s,p) => s+(p.evaluations||[]).length, 0);
+  const allScores = players.flatMap(p => (p.evaluations||[]).map(e=>e.total));
+  const avgScore = allScores.length ? Math.round(allScores.reduce((a,b)=>a+b,0)/allScores.length) : null;
+
+  const startEval = () => {
+    if (!form.name.trim()) return;
+    let player;
+    if (form.save) {
+      const ex = players.find(p => p.name.toLowerCase() === form.name.toLowerCase());
+      if (ex) { player = ex; }
+      else { player = { id: Date.now().toString(), name:form.name.trim(), sport:form.sport, gender:form.gender, evaluations:[] }; savePlayers([...players, player]); }
+    } else {
+      player = { id:'tmp', name:form.name.trim(), sport:form.sport, gender:form.gender, evaluations:[], save:false };
+    }
+    setCurrentPlayer(player); setEvalData({}); setObsData({}); setCurrentBlock(0);
+    setModal(false); setPage('eval');
+  };
+
+  const getScore = (t, val) => {
+    if (val === undefined || val === '') return null;
+    return t.type === 'operative' ? parseInt(val) : calcScore(t, parseFloat(val), currentPlayer?.gender || form.gender);
+  };
+
+  const isBlockDone = (bi) => BLOCKS[bi].tests.every(t => evalData[t.id] !== undefined);
+  const totalDone = Object.keys(evalData).length;
+  const totalTests = BLOCKS.reduce((s,b) => s+b.tests.length, 0);
+  const progress = Math.round(totalDone / totalTests * 100);
+
+  const computeResults = () => {
+    const blockScores = BLOCKS.map(b => {
+      const score = b.tests.reduce((s,t) => {
+        const v = evalData[t.id]; if (v===undefined) return s;
+        return s + (t.type==='operative' ? parseInt(v) : calcScore(t, parseFloat(v), currentPlayer.gender));
+      }, 0);
+      return { id:b.id, name:b.name, score, max:20 };
+    });
+    const total = blockScores.reduce((s,b) => s+b.score, 0);
+    return { blockScores, total };
+  };
+
+  const showResults = () => {
+    const { blockScores, total } = computeResults();
+    const evalEntry = { id:Date.now().toString(), date:new Date().toLocaleDateString('es-ES'), gender:currentPlayer.gender, data:{...evalData}, obs:{...obsData}, blockScores, total };
+    if (currentPlayer.save !== false) {
+      const updated = players.map(p => p.id===currentPlayer.id ? {...p, evaluations:[...(p.evaluations||[]), evalEntry]} : p);
+      savePlayers(updated);
+    }
+    setResults({ blockScores, total, evalEntry });
+    setAiReport(''); setAiLoading(false);
+    setPage('results');
+    setTimeout(() => runAI(blockScores, total), 300);
+  };
+
+  const runAI = async (blockScores, total) => {
+    setAiLoading(true);
+    const msgs = ['Analizando resultados test a test...','Detectando asimetrías y banderas rojas...','Identificando fortalezas y áreas críticas...','Generando informe personalizado...'];
+    let mi = 0;
+    const iv = setInterval(() => { mi=(mi+1)%msgs.length; setAiMsg(msgs[mi]); }, 2200);
+
+    const testData = BLOCKS.map(b =>
+      b.tests.map(t => {
+        const v = evalData[t.id]; if (v===undefined) return null;
+        const pts = t.type==='operative' ? parseInt(v) : calcScore(t, parseFloat(v), currentPlayer.gender);
+        const displayVal = t.type==='operative' ? t.labels[parseInt(v)] : `${v} ${t.unit}`;
+        const obs = obsData[t.id] || '';
+        return `- ${t.name}: ${displayVal} → ${pts}/4 pts${obs?` (Obs: ${obs})`:''}`;
+      }).filter(Boolean).join('\n')
+    );
+
+    const prompt = `Eres un experto en rendimiento deportivo especializado en deportes de raqueta (pádel, tenis, squash). Has evaluado al siguiente jugador con el sistema Racket Performance Lab.
+
+DATOS DEL JUGADOR:
+- Nombre: ${currentPlayer.name}
+- Deporte: ${currentPlayer.sport}
+- Género: ${currentPlayer.gender==='M'?'Masculino':'Femenino'}
+- RACKET SCORE TOTAL: ${total}/100 → ${scoreLevel(total)}
+
+PUNTUACIÓN POR BLOQUES:
+${blockScores.map(b=>`- ${b.name}: ${b.score}/20`).join('\n')}
+
+RESULTADOS TEST A TEST:
+BLOQUE 1 — MOVILIDAD:\n${testData[0]||'Sin datos'}
+BLOQUE 2 — CORE Y ESTABILIDAD:\n${testData[1]||'Sin datos'}
+BLOQUE 3 — FUERZA Y POTENCIA:\n${testData[2]||'Sin datos'}
+BLOQUE 4 — AGILIDAD:\n${testData[3]||'Sin datos'}
+BLOQUE 5 — CAPACIDAD FÍSICA:\n${testData[4]||'Sin datos'}
+
+Genera un informe en español dividido en estas 5 secciones con estos títulos exactos:
+
+###RESUMEN_EJECUTIVO###
+Párrafo de 3-4 líneas que resuma el perfil global del jugador. Menciona el score, el deporte y el estado general real. Sé directo.
+
+###FORTALEZAS###
+Lista de 3-5 fortalezas CONCRETAS nombrando tests específicos con sus puntuaciones. Explica por qué esa fortaleza es relevante para el deporte del jugador.
+
+###BANDERAS_ROJAS###
+Alertas concretas con nombres de tests y valores. Incluye asimetrías detectadas (plancha lateral D vs I, handgrip dominante vs no dominante). Tests con 0-1 punto. Contradicciones entre bloques.
+
+###PLAN_PRIORIDADES###
+Lista ordenada de 4-6 prioridades de trabajo, de más a menos urgente. Cada una con el test/área concreta y una acción específica. Que sea accionable.
+
+###ANALISIS_DETALLADO###
+Análisis bloque a bloque. Para cada bloque: qué destaca positivo, qué falla, relaciones entre tests y cómo afecta al rendimiento en ${currentPlayer.sport}. Sé analítico y específico.
+
+Responde SOLO con las 5 secciones. Lenguaje técnico pero comprensible. Directo, sin frases vacías.`;
+
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:1500, messages:[{role:'user',content:prompt}] })
+      });
+      const data = await res.json();
+      const text = data.content?.find(c=>c.type==='text')?.text || '';
+      clearInterval(iv); setAiLoading(false); setAiReport(text);
+    } catch(e) {
+      clearInterval(iv); setAiLoading(false); setAiReport('ERROR');
+    }
+  };
+
+  const parseSection = (text, key) => {
+    const regex = new RegExp(`###${key}###([\\s\\S]*?)(?=###[A-Z_]+###|$)`);
+    const m = text.match(regex);
+    return m ? m[1].trim() : '';
+  };
+
+  const toggleBlock = (id) => setExpandedBlocks(prev => ({...prev, [id]: !prev[id]}));
+
+  // ── STYLES ──
+  const S = {
+    wrap: { background:'#050810', minHeight:'100vh', fontFamily:"'Inter',sans-serif", color:'#e8f0ff' },
+    header: { background:'rgba(0,5,20,0.97)', borderBottom:'1px solid rgba(0,170,255,0.2)', padding:'14px 20px', display:'flex', alignItems:'center', position:'sticky', top:0, zIndex:50, backdropFilter:'blur(10px)' },
+    logoText: { fontSize:'1.1rem', fontWeight:900, letterSpacing:'3px', textTransform:'uppercase', background:'linear-gradient(90deg,#fff,#00D4FF)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' },
+    logoSub: { fontSize:'0.55rem', letterSpacing:'4px', color:'#00AAFF', textTransform:'uppercase', marginTop:2 },
+    page: { padding:'20px', maxWidth:860, margin:'0 auto' },
+    card: { background:'#0a0f1e', border:'1px solid rgba(0,170,255,0.2)', borderRadius:12, padding:'20px' },
+    sectionTitle: { fontSize:'0.65rem', letterSpacing:'3px', textTransform:'uppercase', color:'#00AAFF', marginBottom:14, paddingBottom:8, borderBottom:'1px solid rgba(0,170,255,0.2)' },
+    btn: { background:'linear-gradient(135deg,#00AAFF,#0055cc)', color:'#fff', border:'none', borderRadius:8, padding:'11px 22px', fontSize:'0.8rem', fontWeight:700, letterSpacing:'2px', textTransform:'uppercase', cursor:'pointer', boxShadow:'0 0 20px rgba(0,170,255,0.3)' },
+    btnOutline: { background:'transparent', border:'1px solid #00AAFF', color:'#00AAFF', borderRadius:8, padding:'10px 20px', fontSize:'0.78rem', fontWeight:700, letterSpacing:'1px', cursor:'pointer' },
+    btnGreen: { background:'linear-gradient(135deg,#00aa66,#006633)', color:'#fff', border:'none', borderRadius:8, padding:'11px 22px', fontSize:'0.8rem', fontWeight:700, letterSpacing:'2px', textTransform:'uppercase', cursor:'pointer', boxShadow:'0 0 20px rgba(0,255,170,0.2)' },
+    input: { width:'100%', background:'#0f1628', border:'1px solid rgba(0,170,255,0.2)', borderRadius:8, padding:'10px 14px', color:'#e8f0ff', fontSize:'0.9rem', outline:'none' },
+    label: { display:'block', fontSize:'0.65rem', letterSpacing:'2px', textTransform:'uppercase', color:'#8899bb', marginBottom:6 },
+  };
+
+  // ── PAGES ──
+
+  // DASHBOARD
+  if (page === 'dashboard') return (
+    <div style={S.wrap} className="rpl">
+      <style>{css}</style>
+      <header style={S.header}>
+        <div><div style={S.logoText}>Racket Performance Lab</div><div style={S.logoSub}>High Performance System</div></div>
+      </header>
+      <div style={S.page}>
+        <div style={{textAlign:'center', padding:'36px 0 28px'}}>
+          <div style={{fontSize:'1.8rem', fontWeight:900, letterSpacing:'4px', textTransform:'uppercase', background:'linear-gradient(90deg,#fff,#00D4FF)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', marginBottom:6}}>Performance Lab</div>
+          <div style={{color:'#8899bb', letterSpacing:'3px', fontSize:'0.7rem', textTransform:'uppercase'}}>Sistema de evaluación integral — deportes de raqueta</div>
+        </div>
+
+        {/* Stats */}
+        <div style={{display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:14, marginBottom:28}}>
+          {[['Jugadores', players.length],['Evaluaciones', totalEvals],['Score medio', avgScore||'—']].map(([label,val]) => (
+            <div key={label} style={{...S.card, textAlign:'center', position:'relative', overflow:'hidden'}}>
+              <div style={{position:'absolute', top:0, left:0, right:0, height:2, background:'linear-gradient(90deg,transparent,#00AAFF,transparent)'}}/>
+              <div style={{fontSize:'2rem', fontWeight:900, color:'#00D4FF'}}>{val}</div>
+              <div style={{fontSize:'0.65rem', color:'#8899bb', textTransform:'uppercase', letterSpacing:'2px', marginTop:4}}>{label}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{textAlign:'center', marginBottom:28}}>
+          <button style={S.btn} onClick={() => setModal(true)}>+ Nueva evaluación</button>
+        </div>
+
+        <div style={S.sectionTitle}>Jugadores registrados</div>
+        {players.length === 0 ? (
+          <div style={{textAlign:'center', padding:'50px 20px', color:'#8899bb'}}>
+            <div style={{fontSize:'2.5rem', opacity:0.3, marginBottom:12}}>🎾</div>
+            <div style={{fontSize:'0.85rem'}}>No hay jugadores registrados.<br/>Comienza una nueva evaluación.</div>
+          </div>
+        ) : players.map(p => {
+          const last = p.evaluations?.length ? p.evaluations[p.evaluations.length-1] : null;
+          return (
+            <div key={p.id} onClick={() => { setHistPlayer(p); setPage('history'); }}
+              style={{...S.card, display:'flex', alignItems:'center', gap:14, marginBottom:10, cursor:'pointer', transition:'all 0.2s'}}
+              onMouseEnter={e=>e.currentTarget.style.borderColor='#00AAFF'}
+              onMouseLeave={e=>e.currentTarget.style.borderColor='rgba(0,170,255,0.2)'}>
+              <div style={{width:42,height:42,borderRadius:'50%',background:'linear-gradient(135deg,#00AAFF,#003366)',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,fontSize:'1rem',flexShrink:0}}>
+                {p.name.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <div style={{fontWeight:700}}>{p.name}</div>
+                <div style={{fontSize:'0.72rem',color:'#8899bb',marginTop:3}}>{p.sport} · {p.gender==='M'?'Masculino':'Femenino'} · {p.evaluations?.length||0} eval.</div>
+              </div>
+              {last && <div style={{marginLeft:'auto'}}>
+                <span style={{padding:'4px 12px',borderRadius:20,fontWeight:900,fontSize:'0.82rem',background:'rgba(0,170,255,0.1)',color:scoreColor(last.total),border:`1px solid ${scoreColor(last.total)}40`}}>{last.total}/100</span>
+              </div>}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* MODAL */}
+      {modal && (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',backdropFilter:'blur(4px)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+          <div style={{...S.card, width:'100%', maxWidth:400, boxShadow:'0 0 60px rgba(0,170,255,0.2)'}}>
+            <div style={{fontSize:'0.9rem',fontWeight:700,letterSpacing:'2px',textTransform:'uppercase',color:'#00D4FF',marginBottom:20}}>Nueva evaluación</div>
+            <div style={{marginBottom:14}}>
+              <div style={S.label}>¿Guardar jugador?</div>
+              <div style={{display:'flex',gap:8}}>
+                {[['Sí, guardar',true],['Solo esta vez',false]].map(([label,val]) => (
+                  <div key={label} onClick={() => setForm(f=>({...f,save:val}))}
+                    style={{flex:1,padding:'8px',borderRadius:8,border:`1px solid ${form.save===val?'#00AAFF':'rgba(0,170,255,0.2)'}`,background:form.save===val?'rgba(0,170,255,0.1)':'#0f1628',color:form.save===val?'#00AAFF':'#8899bb',cursor:'pointer',textAlign:'center',fontSize:'0.8rem',fontWeight:700}}>
+                    {label}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{marginBottom:14}}>
+              <label style={S.label}>Nombre del jugador</label>
+              <input style={S.input} placeholder="Ej: Carlos García" value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))}/>
+            </div>
+            <div style={{marginBottom:14}}>
+              <label style={S.label}>Deporte</label>
+              <select style={S.input} value={form.sport} onChange={e=>setForm(f=>({...f,sport:e.target.value}))}>
+                {['Pádel','Tenis','Squash','Otro'].map(s=><option key={s}>{s}</option>)}
+              </select>
+            </div>
+            <div style={{marginBottom:20}}>
+              <label style={S.label}>Género (para referencias)</label>
+              <div style={{display:'flex',gap:8}}>
+                {[['Masculino','M'],['Femenino','F']].map(([label,val]) => (
+                  <div key={val} onClick={() => setForm(f=>({...f,gender:val}))}
+                    style={{flex:1,padding:'8px',borderRadius:8,border:`1px solid ${form.gender===val?'#00AAFF':'rgba(0,170,255,0.2)'}`,background:form.gender===val?'rgba(0,170,255,0.1)':'#0f1628',color:form.gender===val?'#00AAFF':'#8899bb',cursor:'pointer',textAlign:'center',fontSize:'0.8rem',fontWeight:700}}>
+                    {label}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{display:'flex',gap:10}}>
+              <button style={{...S.btnOutline,flex:1}} onClick={()=>setModal(false)}>Cancelar</button>
+              <button style={{...S.btn,flex:1}} onClick={startEval}>Comenzar →</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  // EVALUACIÓN
+  if (page === 'eval') {
+    const block = BLOCKS[currentBlock];
+    return (
+      <div style={S.wrap} className="rpl">
+        <style>{css}</style>
+        <header style={S.header}>
+          <div><div style={S.logoText}>Racket Performance Lab</div><div style={S.logoSub}>High Performance System</div></div>
+          <button style={{...S.btnOutline, marginLeft:'auto', padding:'6px 14px', fontSize:'0.7rem'}} onClick={()=>setPage('dashboard')}>Dashboard</button>
+        </header>
+        <div style={S.page}>
+          {/* Header eval */}
+          <div style={{...S.card, marginBottom:20}}>
+            <div style={{fontWeight:900, fontSize:'1rem', letterSpacing:'2px'}}>Evaluando: <span style={{color:'#00D4FF'}}>{currentPlayer?.name}</span></div>
+            <div style={{fontSize:'0.7rem',color:'#8899bb',marginTop:4}}>{currentPlayer?.sport} · {currentPlayer?.gender==='M'?'Masculino':'Femenino'}</div>
+            <div style={{marginTop:14}}>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:'0.68rem',color:'#8899bb',marginBottom:6}}>
+                <span>Bloque {currentBlock+1} de {BLOCKS.length} — {totalDone}/{totalTests} tests</span>
+                <span>{progress}%</span>
+              </div>
+              <div style={{height:4,background:'#0f1628',borderRadius:2,overflow:'hidden'}}>
+                <div style={{height:'100%',width:`${progress}%`,background:'linear-gradient(90deg,#00AAFF,#00D4FF)',borderRadius:2,transition:'width 0.4s'}}/>
+              </div>
+            </div>
+          </div>
+
+          {/* Block tabs */}
+          <div style={{display:'flex',gap:8,marginBottom:20,flexWrap:'wrap'}}>
+            {BLOCKS.map((b,i) => (
+              <div key={b.id} onClick={()=>setCurrentBlock(i)}
+                style={{padding:'7px 14px',borderRadius:20,fontSize:'0.68rem',fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',cursor:'pointer',border:`1px solid ${i===currentBlock?'#00AAFF':isBlockDone(i)?'#00ffaa':'rgba(0,170,255,0.2)'}`,background:i===currentBlock?'#00AAFF':'transparent',color:i===currentBlock?'#fff':isBlockDone(i)?'#00ffaa':'#8899bb',boxShadow:i===currentBlock?'0 0 16px rgba(0,170,255,0.4)':'none'}}>
+                {i+1}. {b.name}
+              </div>
+            ))}
+          </div>
+
+          <div style={S.sectionTitle}>{block.name.toUpperCase()} — {block.tests.length} tests</div>
+
+          {block.tests.map(t => {
+            const val = evalData[t.id];
+            const scored = val !== undefined;
+            const pts = scored ? getScore(t, val) : null;
+            const pc = scored ? ptsColor(pts) : null;
+
+            return (
+              <div key={t.id} style={{...S.card, marginBottom:14, borderColor:scored?'rgba(0,170,255,0.4)':'rgba(0,170,255,0.2)', transition:'border 0.2s'}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:6}}>
+                  <div style={{fontWeight:700,fontSize:'0.9rem'}}>{t.name}</div>
+                  {scored && <div style={{padding:'3px 12px',borderRadius:20,fontSize:'0.78rem',fontWeight:900,background:pc.bg,color:pc.color,border:`1px solid ${pc.color}40`,whiteSpace:'nowrap'}}>{pts}/4</div>}
+                </div>
+                <div style={{fontSize:'0.73rem',color:'#8899bb',marginBottom:14,lineHeight:1.6}}>{t.desc}</div>
+
+                {t.type === 'numeric' ? (
+                  <>
+                    <div style={{display:'flex',alignItems:'center',gap:10}}>
+                      <input type="number" step="0.1" placeholder="0"
+                        value={val !== undefined ? val : ''}
+                        onChange={e => { const v=e.target.value; if(v==='') { setEvalData(prev=>{const n={...prev};delete n[t.id];return n;}); } else { setEvalData(prev=>({...prev,[t.id]:parseFloat(v)})); } }}
+                        style={{width:90,background:'#0f1628',border:'1px solid rgba(0,170,255,0.2)',borderRadius:8,padding:'10px',color:'#e8f0ff',fontSize:'1rem',fontWeight:700,textAlign:'center',outline:'none'}}/>
+                      <span style={{color:'#8899bb',fontSize:'0.8rem'}}>{t.unit}</span>
+                    </div>
+                    {scored && <div style={{fontSize:'0.75rem',color:'#8899bb',marginTop:8}}>Puntuación: <span style={{color:'#00D4FF',fontWeight:700}}>{pts} pts</span></div>}
+                  </>
+                ) : (
+                  <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                    {t.labels.map((l,i) => (
+                      <div key={i} onClick={() => setEvalData(prev=>({...prev,[t.id]:i}))}
+                        style={{flex:'1',minWidth:80,padding:'10px 8px',borderRadius:8,border:`1px solid ${scored&&val===i?'#00AAFF':'rgba(0,170,255,0.2)'}`,background:scored&&val===i?'rgba(0,170,255,0.25)':'#0f1628',cursor:'pointer',textAlign:'center',transition:'all 0.15s'}}>
+                        <div style={{fontSize:'1.1rem',color:'#00AAFF',display:'block',marginBottom:4,fontWeight:900}}>{i}</div>
+                        <div style={{fontSize:'0.68rem',color:scored&&val===i?'#e8f0ff':'#8899bb',lineHeight:1.4}}>{l}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <textarea placeholder="Observaciones (opcional)..." rows={2}
+                  value={obsData[t.id]||''}
+                  onChange={e=>setObsData(prev=>({...prev,[t.id]:e.target.value}))}
+                  style={{width:'100%',marginTop:12,background:'#0f1628',border:'1px solid rgba(0,170,255,0.15)',borderRadius:8,padding:'8px 12px',color:'#8899bb',fontSize:'0.75rem',outline:'none',resize:'none',fontFamily:'inherit'}}/>
+              </div>
+            );
+          })}
+
+          <div style={{display:'flex',gap:12,marginTop:20,justifyContent:'space-between'}}>
+            <button style={{...S.btnOutline, visibility:currentBlock===0?'hidden':'visible'}} onClick={()=>setCurrentBlock(b=>b-1)}>← Anterior</button>
+            <button style={S.btn} onClick={()=>{ if(currentBlock<BLOCKS.length-1){setCurrentBlock(b=>b+1);window.scrollTo(0,0);}else{showResults();} }}>
+              {currentBlock===BLOCKS.length-1?'Ver resultados →':'Siguiente →'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // RESULTADOS
+  if (page === 'results' && results) {
+    const { blockScores, total } = results;
+    const sColor = scoreColor(total);
+    const sections = [
+      {key:'RESUMEN_EJECUTIVO', title:'Resumen ejecutivo', icon:'📊'},
+      {key:'FORTALEZAS', title:'Fortalezas del jugador', icon:'💪'},
+      {key:'BANDERAS_ROJAS', title:'Alertas y banderas rojas', icon:'🚨'},
+      {key:'PLAN_PRIORIDADES', title:'Plan de prioridades', icon:'🎯'},
+      {key:'ANALISIS_DETALLADO', title:'Análisis detallado por bloque', icon:'🔬'},
+    ];
+
+    return (
+      <div style={S.wrap} className="rpl">
+        <style>{css}</style>
+        <header style={S.header}>
+          <div><div style={S.logoText}>Racket Performance Lab</div><div style={S.logoSub}>High Performance System</div></div>
+          <button style={{...S.btnOutline, marginLeft:'auto', padding:'6px 14px', fontSize:'0.7rem'}} onClick={()=>setPage('dashboard')}>Dashboard</button>
+        </header>
+        <div style={S.page}>
+
+          {/* Score hero */}
+          <div style={{...S.card, textAlign:'center', padding:'40px 20px', marginBottom:20, position:'relative', overflow:'hidden'}}>
+            <div style={{position:'absolute',top:'-30%',left:'50%',transform:'translateX(-50%)',width:300,height:300,borderRadius:'50%',background:'radial-gradient(circle,rgba(0,170,255,0.08),transparent 70%)',pointerEvents:'none'}}/>
+            <div style={{width:150,height:150,borderRadius:'50%',border:`3px solid ${sColor}`,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',margin:'0 auto 20px',boxShadow:`0 0 40px ${sColor}40`}}>
+              <div style={{fontSize:'3rem',fontWeight:900,color:sColor,lineHeight:1}}>{total}</div>
+              <div style={{fontSize:'0.75rem',color:'#8899bb'}}>/100</div>
+            </div>
+            <div style={{fontSize:'0.95rem',fontWeight:700,letterSpacing:'3px',textTransform:'uppercase',color:sColor}}>{scoreLevel(total)}</div>
+            <div style={{color:'#8899bb',fontSize:'0.72rem',marginTop:8}}>{currentPlayer?.name} · {currentPlayer?.sport}</div>
+            <div style={{color:'#8899bb',fontSize:'0.68rem',marginTop:4}}>{new Date().toLocaleDateString('es-ES',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</div>
+          </div>
+
+          {/* Bloques */}
+          <div style={S.sectionTitle}>Puntuación por bloque</div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:10,marginBottom:24}}>
+            {blockScores.map(b => (
+              <div key={b.id} style={{...S.card, textAlign:'center', padding:'14px 8px'}}>
+                <div style={{fontSize:'0.58rem',letterSpacing:'1px',textTransform:'uppercase',color:'#8899bb',marginBottom:8}}>{b.name}</div>
+                <div style={{fontSize:'1.4rem',fontWeight:900,color:'#00D4FF'}}>{b.score}</div>
+                <div style={{fontSize:'0.6rem',color:'#8899bb'}}>/20</div>
+                <div style={{height:3,background:'#0f1628',borderRadius:2,marginTop:8,overflow:'hidden'}}>
+                  <div style={{height:'100%',width:`${b.score/20*100}%`,background:'linear-gradient(90deg,#00AAFF,#00D4FF)',borderRadius:2}}/>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Radar */}
+          <div style={{...S.card, marginBottom:20}}>
+            <div style={S.sectionTitle}>Racket Score — Radar</div>
+            <RadarChart scores={blockScores}/>
+          </div>
+
+          {/* Desglose */}
+          <div style={S.sectionTitle}>Desglose detallado por bloque</div>
+          {BLOCKS.map((b, bi) => {
+            const bs = blockScores[bi];
+            const open = expandedBlocks[b.id];
+            return (
+              <div key={b.id} style={{...S.card, marginBottom:12, padding:0, overflow:'hidden'}}>
+                <div onClick={()=>toggleBlock(b.id)} style={{padding:'16px 20px',background:'rgba(0,170,255,0.05)',borderBottom:open?'1px solid rgba(0,170,255,0.15)':'none',display:'flex',justifyContent:'space-between',alignItems:'center',cursor:'pointer'}}>
+                  <div>
+                    <div style={{fontWeight:700,fontSize:'0.9rem'}}>{b.name}</div>
+                    <div style={{height:3,background:'#0f1628',borderRadius:2,marginTop:8,width:120,overflow:'hidden'}}>
+                      <div style={{height:'100%',width:`${bs.score/20*100}%`,background:'linear-gradient(90deg,#00AAFF,#00D4FF)',borderRadius:2}}/>
+                    </div>
+                  </div>
+                  <div style={{display:'flex',alignItems:'center',gap:10}}>
+                    <span style={{fontSize:'1.3rem',fontWeight:900,color:'#00D4FF'}}>{bs.score}/20</span>
+                    <span style={{color:'#8899bb',fontSize:'0.8rem'}}>{open?'▲':'▼'}</span>
+                  </div>
+                </div>
+                {open && (
+                  <div style={{padding:'16px 20px'}} className="fade-in">
+                    {b.tests.map(t => {
+                      const v = evalData[t.id];
+                      if (v === undefined) return null;
+                      const pts = t.type==='operative' ? parseInt(v) : calcScore(t, parseFloat(v), currentPlayer.gender);
+                      const displayVal = t.type==='operative' ? t.labels[parseInt(v)] : `${v} ${t.unit}`;
+                      const pc = ptsColor(pts);
+                      const obs = obsData[t.id];
+                      return (
+                        <div key={t.id}>
+                          <div style={{display:'flex',alignItems:'center',gap:12,padding:'8px 0',borderBottom:'1px solid rgba(0,170,255,0.07)'}}>
+                            <div style={{width:30,height:30,borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,fontSize:'0.85rem',flexShrink:0,background:pc.bg,color:pc.color}}>{pts}</div>
+                            <div style={{flex:1,fontSize:'0.82rem'}}>{t.name}</div>
+                            <div style={{fontSize:'0.75rem',color:'#8899bb'}}>{displayVal}</div>
+                          </div>
+                          {obs && <div style={{fontSize:'0.7rem',color:'#8899bb',fontStyle:'italic',padding:'4px 0 4px 42px'}}>📝 {obs}</div>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* IA */}
+          <div style={{marginTop:24}}>
+            <div style={S.sectionTitle}>Análisis IA — Informe completo</div>
+            {aiLoading && (
+              <div style={{...S.card, textAlign:'center', padding:'40px 20px'}}>
+                <div className="spinner"/>
+                <div style={{color:'#8899bb',fontSize:'0.82rem',letterSpacing:'2px'}} className="ai-pulse">{aiMsg}</div>
+              </div>
+            )}
+            {!aiLoading && aiReport && aiReport !== 'ERROR' && (
+              <div style={{...S.card, padding:0, overflow:'hidden'}} className="fade-in">
+                <div style={{padding:'18px 22px',background:'linear-gradient(135deg,rgba(0,170,255,0.08),rgba(0,30,80,0.2))',borderBottom:'1px solid rgba(0,170,255,0.2)',display:'flex',alignItems:'center',gap:12}}>
+                  <div style={{width:36,height:36,background:'linear-gradient(135deg,#00AAFF,#003399)',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1.1rem',flexShrink:0}}>🤖</div>
+                  <div>
+                    <div style={{fontSize:'0.82rem',fontWeight:700,letterSpacing:'2px',textTransform:'uppercase',color:'#00D4FF'}}>Análisis IA — Informe completo</div>
+                    <div style={{fontSize:'0.68rem',color:'#8899bb',marginTop:2}}>Generado por Racket Performance Lab · {currentPlayer?.name}</div>
+                  </div>
+                </div>
+                <div style={{padding:'24px 22px'}}>
+                  {sections.map(sec => {
+                    const content = parseSection(aiReport, sec.key);
+                    if (!content) return null;
+                    return (
+                      <div key={sec.key} style={{marginBottom:24}}>
+                        <div style={{fontSize:'0.68rem',letterSpacing:'2px',textTransform:'uppercase',color:'#00AAFF',marginBottom:12,display:'flex',alignItems:'center',gap:8}}>
+                          <span>{sec.icon} {sec.title}</span>
+                          <div style={{flex:1,height:1,background:'rgba(0,170,255,0.2)'}}/>
+                        </div>
+                        <div style={{fontSize:'0.86rem',lineHeight:1.85,color:'#e8f0ff',whiteSpace:'pre-wrap'}}>{content}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {!aiLoading && aiReport === 'ERROR' && (
+              <div style={{...S.card, color:'#8899bb', fontSize:'0.85rem'}}>No se pudo generar el análisis IA. Inténtalo de nuevo.</div>
+            )}
+          </div>
+
+          <div style={{display:'flex',gap:12,flexWrap:'wrap',marginTop:24,paddingTop:20,borderTop:'1px solid rgba(0,170,255,0.15)'}}>
+            <button style={S.btn} onClick={()=>setPage('dashboard')}>← Dashboard</button>
+            <button style={S.btnOutline} onClick={()=>{ const p=players.find(pl=>pl.id===currentPlayer?.id); if(p){setHistPlayer(p);setPage('history');} }}>Ver historial</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // HISTORIAL
+  if (page === 'history' && histPlayer) {
+    const p = players.find(pl=>pl.id===histPlayer.id) || histPlayer;
+    return (
+      <div style={S.wrap} className="rpl">
+        <style>{css}</style>
+        <header style={S.header}>
+          <div><div style={S.logoText}>Racket Performance Lab</div><div style={S.logoSub}>High Performance System</div></div>
+          <button style={{...S.btnOutline, marginLeft:'auto', padding:'6px 14px', fontSize:'0.7rem'}} onClick={()=>setPage('dashboard')}>Dashboard</button>
+        </header>
+        <div style={S.page}>
+          <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:24}}>
+            <button style={{...S.btnOutline,padding:'7px 14px',fontSize:'0.75rem'}} onClick={()=>setPage('dashboard')}>← Volver</button>
+            <div>
+              <div style={{fontWeight:900,fontSize:'1rem',letterSpacing:'2px'}}>{p.name}</div>
+              <div style={{fontSize:'0.7rem',color:'#8899bb'}}>{p.sport} · {p.gender==='M'?'Masculino':'Femenino'}</div>
+            </div>
+          </div>
+          <div style={S.sectionTitle}>Historial de evaluaciones</div>
+          {!p.evaluations?.length ? (
+            <div style={{textAlign:'center',padding:'50px 20px',color:'#8899bb'}}>
+              <div style={{fontSize:'2.5rem',opacity:0.3,marginBottom:12}}>📊</div>
+              <div style={{fontSize:'0.85rem'}}>Sin evaluaciones registradas.</div>
+            </div>
+          ) : [...p.evaluations].reverse().map((e,i) => (
+            <div key={e.id} style={{...S.card,display:'flex',alignItems:'center',gap:16,marginBottom:10}}>
+              <div>
+                <div style={{fontWeight:700}}>Evaluación #{p.evaluations.length-i}</div>
+                <div style={{fontSize:'0.72rem',color:'#8899bb',marginTop:3}}>{e.date}</div>
+                <div style={{display:'flex',gap:6,marginTop:8,flexWrap:'wrap'}}>
+                  {e.blockScores.map(b => (
+                    <span key={b.id} style={{fontSize:'0.62rem',padding:'2px 8px',borderRadius:10,background:'rgba(0,170,255,0.08)',border:'1px solid rgba(0,170,255,0.2)',color:'#00D4FF'}}>{b.name}: {b.score}/20</span>
+                  ))}
+                </div>
+              </div>
+              <div style={{marginLeft:'auto'}}>
+                <span style={{padding:'4px 14px',borderRadius:20,fontWeight:900,fontSize:'0.85rem',background:'rgba(0,170,255,0.1)',color:scoreColor(e.total),border:`1px solid ${scoreColor(e.total)}40`}}>{e.total}/100</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return <div style={S.wrap}><style>{css}</style></div>;
+}
