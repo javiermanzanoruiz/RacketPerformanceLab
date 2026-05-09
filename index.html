@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Racket Performance Lab</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg:#050810; --bg2:#0a0f1e; --bg3:#0f1628;
+    --accent:#00AAFF; --accent2:#00D4FF;
+    --accent-glow:rgba(0,170,255,0.15); --accent-glow2:rgba(0,170,255,0.3);
+    --text:#e8f0ff; --text2:#8899bb; --border:rgba(0,170,255,0.2);
+    --red:#ff4466; --green:#00ffaa; --yellow:#ffcc00; --orange:#ff8800;
+    --card:rgba(10,15,30,0.9);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;overflow-x:hidden;}
+  ::-webkit-scrollbar{width:4px;}
+  ::-webkit-scrollbar-track{background:var(--bg2);}
+  ::-webkit-scrollbar-thumb{background:var(--accent);border-radius:2px;}
+
+  header{background:linear-gradient(180deg,rgba(0,10,30,0.98),rgba(5,8,16,0.95));border-bottom:1px solid var(--border);padding:16px 24px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:100;backdrop-filter:blur(10px);}
+  .logo-text{font-size:1.3rem;font-weight:900;letter-spacing:3px;text-transform:uppercase;background:linear-gradient(90deg,#fff,var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+  .logo-sub{font-size:0.6rem;letter-spacing:4px;color:var(--accent);text-transform:uppercase;margin-top:2px;}
+  .header-right{margin-left:auto;display:flex;gap:10px;align-items:center;}
+
+  .page{display:none;padding:24px;max-width:900px;margin:0 auto;}
+  .page.active{display:block;}
+
+  .dash-hero{text-align:center;padding:40px 20px 30px;}
+  .dash-title{font-size:2rem;font-weight:900;letter-spacing:4px;text-transform:uppercase;background:linear-gradient(90deg,#fff,var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px;}
+  .dash-sub{color:var(--text2);letter-spacing:3px;font-size:0.75rem;text-transform:uppercase;}
+
+  .stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:30px 0;}
+  .stat-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;text-align:center;position:relative;overflow:hidden;}
+  .stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);}
+  .stat-num{font-size:2rem;font-weight:900;color:var(--accent2);}
+  .stat-label{font-size:0.7rem;color:var(--text2);text-transform:uppercase;letter-spacing:2px;margin-top:4px;}
+
+  .btn{background:linear-gradient(135deg,var(--accent),#0066cc);color:#fff;border:none;border-radius:8px;padding:12px 24px;font-size:0.85rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;cursor:pointer;transition:all 0.2s;box-shadow:0 0 20px rgba(0,170,255,0.3);}
+  .btn:hover{transform:translateY(-1px);box-shadow:0 0 30px rgba(0,170,255,0.5);}
+  .btn:disabled{opacity:0.5;cursor:not-allowed;transform:none;}
+  .btn-outline{background:transparent;border:1px solid var(--accent);color:var(--accent);box-shadow:none;}
+  .btn-outline:hover{background:var(--accent-glow);}
+  .btn-sm{padding:8px 16px;font-size:0.75rem;}
+  .btn-green{background:linear-gradient(135deg,#00aa66,#006633);box-shadow:0 0 20px rgba(0,255,170,0.2);}
+  .btn-green:hover{box-shadow:0 0 30px rgba(0,255,170,0.4);}
+
+  .section-title{font-size:0.7rem;letter-spacing:3px;text-transform:uppercase;color:var(--accent);margin-bottom:16px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+
+  .player-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin-bottom:10px;display:flex;align-items:center;gap:16px;cursor:pointer;transition:all 0.2s;}
+  .player-card:hover{border-color:var(--accent);background:var(--bg3);transform:translateX(4px);}
+  .player-avatar{width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,var(--accent),#003366);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:1rem;color:#fff;flex-shrink:0;}
+  .player-name{font-weight:700;font-size:0.95rem;}
+  .player-meta{font-size:0.72rem;color:var(--text2);margin-top:3px;}
+  .player-score{margin-left:auto;text-align:right;}
+  .score-badge{display:inline-block;padding:4px 12px;border-radius:20px;font-weight:900;font-size:0.85rem;}
+  .score-high{background:rgba(0,255,170,0.15);color:var(--green);border:1px solid rgba(0,255,170,0.3);}
+  .score-mid{background:rgba(0,170,255,0.15);color:var(--accent2);border:1px solid rgba(0,170,255,0.3);}
+  .score-low{background:rgba(255,204,0,0.15);color:var(--yellow);border:1px solid rgba(255,204,0,0.3);}
+  .score-bad{background:rgba(255,68,102,0.15);color:var(--red);border:1px solid rgba(255,68,102,0.3);}
+
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.8);backdrop-filter:blur(4px);z-index:200;display:none;align-items:center;justify-content:center;padding:20px;}
+  .modal-overlay.open{display:flex;}
+  .modal{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:28px;width:100%;max-width:420px;box-shadow:0 0 60px rgba(0,170,255,0.2);}
+  .modal h3{font-size:1rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:20px;color:var(--accent2);}
+  .form-group{margin-bottom:16px;}
+  .form-group label{display:block;font-size:0.72rem;letter-spacing:2px;text-transform:uppercase;color:var(--text2);margin-bottom:6px;}
+  .form-group input,.form-group select{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-size:0.9rem;outline:none;transition:border 0.2s;}
+  .form-group input:focus,.form-group select:focus{border-color:var(--accent);}
+  .modal-actions{display:flex;gap:10px;margin-top:20px;}
+  .modal-actions .btn{flex:1;}
+
+  .eval-header{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:24px;}
+  .eval-player{font-size:1.1rem;font-weight:900;letter-spacing:2px;}
+  .eval-player span{color:var(--accent2);}
+  .progress-bar-wrap{margin-top:14px;}
+  .progress-label{display:flex;justify-content:space-between;font-size:0.7rem;color:var(--text2);letter-spacing:1px;margin-bottom:6px;}
+  .progress-bar{height:4px;background:var(--bg3);border-radius:2px;overflow:hidden;}
+  .progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:2px;transition:width 0.4s;}
+
+  .block-tabs{display:flex;gap:8px;margin-bottom:24px;flex-wrap:wrap;}
+  .block-tab{padding:8px 14px;border-radius:20px;font-size:0.7rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;cursor:pointer;border:1px solid var(--border);color:var(--text2);background:var(--bg2);transition:all 0.2s;}
+  .block-tab.active{background:var(--accent);color:#fff;border-color:var(--accent);box-shadow:0 0 16px rgba(0,170,255,0.4);}
+  .block-tab.completed{border-color:var(--green);color:var(--green);}
+
+  .test-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px;transition:border 0.2s;}
+  .test-card.scored{border-color:rgba(0,170,255,0.4);}
+  .test-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;}
+  .test-name{font-weight:700;font-size:0.95rem;}
+  .test-desc{font-size:0.75rem;color:var(--text2);margin-bottom:14px;line-height:1.5;}
+  .test-points-badge{background:var(--accent-glow);border:1px solid var(--border);border-radius:20px;padding:4px 12px;font-size:0.8rem;font-weight:900;color:var(--accent2);white-space:nowrap;}
+  .numeric-input-wrap{display:flex;align-items:center;gap:10px;}
+  .numeric-input-wrap input{width:100px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-size:1rem;font-weight:700;outline:none;text-align:center;}
+  .numeric-input-wrap input:focus{border-color:var(--accent);}
+  .unit-label{color:var(--text2);font-size:0.8rem;letter-spacing:1px;}
+  .score-preview{font-size:0.8rem;color:var(--text2);margin-top:8px;}
+  .score-preview span{color:var(--accent2);font-weight:700;}
+  .op-options{display:flex;gap:8px;flex-wrap:wrap;}
+  .op-btn{flex:1;min-width:80px;padding:10px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);font-size:0.75rem;font-weight:700;cursor:pointer;text-align:center;transition:all 0.2s;}
+  .op-btn .op-num{font-size:1.2rem;color:var(--accent);display:block;margin-bottom:4px;}
+  .op-btn:hover{border-color:var(--accent);color:var(--text);}
+  .op-btn.selected{background:var(--accent-glow2);border-color:var(--accent);color:var(--text);}
+  .obs-input{width:100%;margin-top:12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text2);font-size:0.78rem;outline:none;resize:none;font-family:inherit;transition:border 0.2s;}
+  .obs-input:focus{border-color:var(--accent);color:var(--text);}
+  .gender-row{display:flex;gap:8px;margin-bottom:16px;}
+  .gender-btn{flex:1;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);cursor:pointer;font-size:0.8rem;font-weight:700;text-align:center;transition:all 0.2s;}
+  .gender-btn.active{border-color:var(--accent);color:var(--accent);background:var(--accent-glow);}
+  .eval-nav{display:flex;gap:12px;margin-top:24px;justify-content:space-between;}
+
+  /* RESULTADOS */
+  .results-score-hero{text-align:center;padding:40px 20px;background:var(--bg2);border:1px solid var(--border);border-radius:16px;margin-bottom:24px;position:relative;overflow:hidden;}
+  .results-score-hero::before{content:'';position:absolute;top:-50%;left:50%;transform:translateX(-50%);width:300px;height:300px;border-radius:50%;background:radial-gradient(circle,rgba(0,170,255,0.1),transparent 70%);}
+  .score-circle{width:150px;height:150px;border-radius:50%;border:3px solid var(--accent);display:flex;flex-direction:column;align-items:center;justify-content:center;margin:0 auto 20px;box-shadow:0 0 40px rgba(0,170,255,0.3),inset 0 0 40px rgba(0,170,255,0.05);}
+  .score-big{font-size:3rem;font-weight:900;color:var(--accent2);line-height:1;}
+  .score-max{font-size:0.75rem;color:var(--text2);}
+  .score-level{font-size:1rem;font-weight:700;letter-spacing:3px;text-transform:uppercase;}
+
+  .blocks-breakdown{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:24px;}
+  .block-result{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 10px;text-align:center;}
+  .block-result-name{font-size:0.6rem;letter-spacing:1px;text-transform:uppercase;color:var(--text2);margin-bottom:8px;}
+  .block-result-score{font-size:1.4rem;font-weight:900;color:var(--accent2);}
+  .block-result-bar{height:3px;background:var(--bg3);border-radius:2px;margin-top:6px;overflow:hidden;}
+  .block-result-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:2px;}
+
+  .chart-container{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:24px;}
+  .chart-wrap{max-width:400px;margin:0 auto;}
+
+  /* IA ANALYSIS */
+  .ai-loading{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:40px;text-align:center;margin-bottom:24px;}
+  .ai-spinner{width:48px;height:48px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 16px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .ai-loading-text{color:var(--text2);font-size:0.85rem;letter-spacing:2px;}
+  .ai-pulse{animation:pulse 2s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.5;}}
+
+  .ai-report{background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:24px;}
+  .ai-report-header{background:linear-gradient(135deg,rgba(0,170,255,0.1),rgba(0,50,100,0.2));padding:20px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;}
+  .ai-icon{width:36px;height:36px;background:linear-gradient(135deg,var(--accent),#003399);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;}
+  .ai-report-title{font-size:0.85rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--accent2);}
+  .ai-report-sub{font-size:0.7rem;color:var(--text2);margin-top:2px;}
+  .ai-report-body{padding:24px;}
+  .ai-section{margin-bottom:24px;}
+  .ai-section-title{font-size:0.7rem;letter-spacing:2px;text-transform:uppercase;color:var(--accent);margin-bottom:12px;display:flex;align-items:center;gap:8px;}
+  .ai-section-title::after{content:'';flex:1;height:1px;background:var(--border);}
+  .ai-text{font-size:0.88rem;line-height:1.8;color:var(--text);white-space:pre-wrap;}
+
+  .flag-card{border-radius:8px;padding:12px 16px;margin-bottom:8px;display:flex;align-items:flex-start;gap:10px;font-size:0.83rem;line-height:1.6;}
+  .flag-red{background:rgba(255,68,102,0.08);border:1px solid rgba(255,68,102,0.25);}
+  .flag-yellow{background:rgba(255,204,0,0.08);border:1px solid rgba(255,204,0,0.25);}
+  .flag-green{background:rgba(0,255,170,0.08);border:1px solid rgba(0,255,170,0.25);}
+  .flag-icon{font-size:1rem;flex-shrink:0;margin-top:1px;}
+
+  .priority-item{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);}
+  .priority-item:last-child{border-bottom:none;}
+  .priority-num{width:24px;height:24px;border-radius:50%;background:var(--accent);color:#fff;font-size:0.7rem;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .priority-text{font-size:0.83rem;line-height:1.5;}
+
+  /* BLOQUE DETALLE */
+  .block-detail{background:var(--bg2);border:1px solid var(--border);border-radius:12px;margin-bottom:16px;overflow:hidden;}
+  .block-detail-header{padding:16px 20px;background:rgba(0,170,255,0.05);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;cursor:pointer;}
+  .block-detail-name{font-weight:700;letter-spacing:1px;font-size:0.9rem;}
+  .block-detail-score{font-size:1.2rem;font-weight:900;color:var(--accent2);}
+  .block-detail-bar{height:3px;background:var(--bg3);margin-top:8px;border-radius:2px;overflow:hidden;}
+  .block-detail-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:2px;transition:width 0.6s;}
+  .block-detail-body{padding:16px 20px;display:none;}
+  .block-detail-body.open{display:block;}
+  .test-row{display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid rgba(0,170,255,0.08);}
+  .test-row:last-child{border-bottom:none;}
+  .test-row-name{flex:1;font-size:0.82rem;}
+  .test-row-val{font-size:0.78rem;color:var(--text2);min-width:60px;text-align:right;}
+  .test-row-pts{width:32px;height:32px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:0.85rem;flex-shrink:0;}
+  .pts-4{background:rgba(0,255,170,0.15);color:var(--green);}
+  .pts-3{background:rgba(0,170,255,0.15);color:var(--accent2);}
+  .pts-2{background:rgba(255,204,0,0.15);color:var(--yellow);}
+  .pts-1{background:rgba(255,136,0,0.15);color:var(--orange);}
+  .pts-0{background:rgba(255,68,102,0.15);color:var(--red);}
+  .test-obs{font-size:0.72rem;color:var(--text2);font-style:italic;margin-top:3px;padding-left:44px;}
+
+  .history-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin-bottom:10px;display:flex;align-items:center;gap:16px;transition:all 0.2s;}
+  .empty-state{text-align:center;padding:60px 20px;color:var(--text2);}
+  .empty-state .icon{font-size:3rem;margin-bottom:16px;opacity:0.3;}
+
+  .action-bar{display:flex;gap:12px;flex-wrap:wrap;margin-top:24px;padding-top:24px;border-top:1px solid var(--border);}
+
+  @media(max-width:600px){
+    .stats-grid{grid-template-columns:repeat(3,1fr);gap:10px;}
+    .blocks-breakdown{grid-template-columns:repeat(3,1fr);}
+    .block-tabs{gap:6px;}
+    .block-tab{padding:6px 10px;font-size:0.65rem;}
+    .action-bar{flex-direction:column;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo-text">Racket Performance Lab</div>
+    <div class="logo-sub">High Performance System</div>
+  </div>
+  <div class="header-right">
+    <button class="btn btn-outline btn-sm" onclick="showPage('dashboard')">Dashboard</button>
+  </div>
+</header>
+
+<!-- DASHBOARD -->
+<div id="page-dashboard" class="page active">
+  <div class="dash-hero">
+    <div class="dash-title">Performance Lab</div>
+    <div class="dash-sub">Sistema de evaluación integral — deportes de raqueta</div>
+  </div>
+  <div class="stats-grid">
+    <div class="stat-card"><div class="stat-num" id="stat-players">0</div><div class="stat-label">Jugadores</div></div>
+    <div class="stat-card"><div class="stat-num" id="stat-evals">0</div><div class="stat-label">Evaluaciones</div></div>
+    <div class="stat-card"><div class="stat-num" id="stat-avg">—</div><div class="stat-label">Score medio</div></div>
+  </div>
+  <div style="text-align:center;margin-bottom:32px;">
+    <button class="btn" onclick="openNewPlayerModal()">+ Nueva evaluación</button>
+  </div>
+  <div class="section-title">Jugadores registrados</div>
+  <div id="players-list"></div>
+</div>
+
+<!-- EVALUACIÓN -->
+<div id="page-eval" class="page">
+  <div class="eval-header">
+    <div class="eval-player">Evaluando: <span id="eval-player-name"></span></div>
+    <div style="font-size:0.72rem;color:var(--text2);margin-top:4px;" id="eval-player-meta"></div>
+    <div class="progress-bar-wrap">
+      <div class="progress-label"><span id="progress-text">Bloque 1 de 5</span><span id="progress-pct">0%</span></div>
+      <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+    </div>
+  </div>
+  <div class="block-tabs" id="block-tabs"></div>
+  <div id="tests-container"></div>
+  <div class="eval-nav">
+    <button class="btn btn-outline" id="btn-prev" onclick="prevBlock()">← Anterior</button>
+    <button class="btn" id="btn-next" onclick="nextBlock()">Siguiente →</button>
+  </div>
+</div>
+
+<!-- RESULTADOS -->
+<div id="page-results" class="page">
+  <div class="results-score-hero">
+    <div class="score-circle">
+      <div class="score-big" id="res-score">0</div>
+      <div class="score-max">/100</div>
+    </div>
+    <div class="score-level" id="res-level">—</div>
+    <div style="color:var(--text2);font-size:0.75rem;margin-top:8px;" id="res-player-name"></div>
+    <div style="color:var(--text2);font-size:0.7rem;margin-top:4px;" id="res-date"></div>
+  </div>
+
+  <div class="section-title">Puntuación por bloque</div>
+  <div class="blocks-breakdown" id="blocks-breakdown"></div>
+
+  <div class="chart-container">
+    <div class="section-title" style="margin-bottom:20px;">Racket Score — Radar</div>
+    <div class="chart-wrap"><canvas id="radarChart"></canvas></div>
+  </div>
+
+  <div class="section-title">Desglose detallado por bloque</div>
+  <div id="blocks-detail"></div>
+
+  <!-- IA REPORT -->
+  <div id="ai-loading" class="ai-loading" style="display:none;">
+    <div class="ai-spinner"></div>
+    <div class="ai-loading-text ai-pulse" id="ai-loading-text">Analizando resultados...</div>
+  </div>
+  <div id="ai-report-container" style="display:none;"></div>
+
+  <div class="action-bar">
+    <button class="btn" onclick="showPage('dashboard')">← Dashboard</button>
+    <button class="btn btn-outline" onclick="viewPlayerHistory()">Ver historial</button>
+    <button class="btn btn-green" id="btn-pdf" onclick="exportPDF()" style="display:none;">⬇ Exportar PDF</button>
+  </div>
+</div>
+
+<!-- HISTORIAL -->
+<div id="page-history" class="page">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;">
+    <button class="btn btn-outline btn-sm" onclick="showPage('dashboard')">← Volver</button>
+    <div>
+      <div class="eval-player" id="hist-player-name"></div>
+      <div style="font-size:0.72rem;color:var(--text2);" id="hist-player-meta"></div>
+    </div>
+  </div>
+  <div class="section-title">Historial de evaluaciones</div>
+  <div id="history-list"></div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal-new-player">
+  <div class="modal">
+    <h3>Nueva evaluación</h3>
+    <div style="margin-bottom:16px;">
+      <div class="section-title" style="margin-bottom:10px;">¿Guardar jugador?</div>
+      <div class="gender-row">
+        <div class="gender-btn active" id="save-yes" onclick="toggleSave(true)">Sí, guardar</div>
+        <div class="gender-btn" id="save-no" onclick="toggleSave(false)">Solo esta vez</div>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Nombre del jugador</label>
+      <input type="text" id="inp-name" placeholder="Ej: Carlos García">
+    </div>
+    <div class="form-group">
+      <label>Deporte</label>
+      <select id="inp-sport">
+        <option value="Pádel">Pádel</option>
+        <option value="Tenis">Tenis</option>
+        <option value="Squash">Squash</option>
+        <option value="Otro">Otro</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Género (para referencias)</label>
+      <div class="gender-row" style="margin-bottom:0;">
+        <div class="gender-btn active" id="g-male" onclick="selectGender('M')">Masculino</div>
+        <div class="gender-btn" id="g-female" onclick="selectGender('F')">Femenino</div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal()">Cancelar</button>
+      <button class="btn" onclick="startEval()">Comenzar →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// BLOQUES Y TESTS
+// ============================================================
+const BLOCKS = [
+  { id:"movilidad", name:"Movilidad", tests:[
+    { id:"dorsiflexion", name:"Dorsiflexión de tobillo", desc:"Test rodilla a pared. Distancia máxima dedo gordo-pared sin despegar talón.", type:"numeric", unit:"cm", scoring:{ M:[{min:10,p:4},{min:8,p:3},{min:6,p:2},{min:4,p:1},{min:0,p:0}], F:[{min:10,p:4},{min:8,p:3},{min:6,p:2},{min:4,p:1},{min:0,p:0}] } },
+    { id:"flex_cadera", name:"Flexión de cadera activa", desc:"Decúbito supino, elevar pierna con rodilla extendida. Se valora ángulo y control lumbo-pélvico.", type:"numeric", unit:"°", scoring:{ M:[{min:90,p:4},{min:80,p:3},{min:70,p:2},{min:60,p:1},{min:0,p:0}], F:[{min:90,p:4},{min:80,p:3},{min:70,p:2},{min:60,p:1},{min:0,p:0}] } },
+    { id:"rot_toracica", name:"Rotación torácica en cuadrupedia", desc:"Cuadrupedia, mano detrás de la cabeza. Rotar abriendo codo hacia techo sin colapsar lumbar.", type:"operative", labels:["Muy limitada / dolorosa","Rotación claramente pobre","Limitación moderada","Ligera limitación mínima","Amplia, limpia, sin compensación"] },
+    { id:"rot_cadera", name:"Rotación de cadera (int/ext)", desc:"Posición 90/90. Se valora movilidad interna y externa, simetría y limpieza del patrón.", type:"operative", labels:["Muy limitada / dolorosa","Limitación clara","Limitación moderada","Leve restricción o asimetría","Movilidad completa y equilibrada"] },
+    { id:"overhead_squat", name:"Overhead Squat", desc:"Brazos arriba, sentadilla profunda. Integración global: tobillo, cadera, torácica y hombro.", type:"operative", labels:["No consigue patrón funcional","Ejecución muy limitada","Compensaciones moderadas","Leves compensaciones","Ejecución limpia, buena profundidad"] }
+  ]},
+  { id:"core", name:"Core", tests:[
+    { id:"plancha_frontal", name:"Plancha frontal", desc:"Antebrazos y pies, cuerpo alineado. Sin hundir lumbar ni elevar cadera.", type:"numeric", unit:"seg", scoring:{ M:[{min:60,p:4},{min:45,p:3},{min:30,p:2},{min:15,p:1},{min:0,p:0}], F:[{min:60,p:4},{min:45,p:3},{min:30,p:2},{min:15,p:1},{min:0,p:0}] } },
+    { id:"plancha_lat_d", name:"Plancha lateral derecha", desc:"Apoyo antebrazo y pies, pelvis estable.", type:"numeric", unit:"seg", scoring:{ M:[{min:45,p:4},{min:30,p:3},{min:20,p:2},{min:10,p:1},{min:0,p:0}], F:[{min:45,p:4},{min:30,p:3},{min:20,p:2},{min:10,p:1},{min:0,p:0}] } },
+    { id:"plancha_lat_i", name:"Plancha lateral izquierda", desc:"Mismo criterio que derecha. Comparar siempre ambos lados.", type:"numeric", unit:"seg", scoring:{ M:[{min:45,p:4},{min:30,p:3},{min:20,p:2},{min:10,p:1},{min:0,p:0}], F:[{min:45,p:4},{min:30,p:3},{min:20,p:2},{min:10,p:1},{min:0,p:0}] } },
+    { id:"deadbug", name:"Deadbug", desc:"Decúbito supino. Zona media estable mientras mueve brazo/pierna contraria.", type:"operative", labels:["Incapaz de mantener control","Compensaciones claras","Control irregular","Pequeños fallos","Patrón perfecto, respiración controlada"] },
+    { id:"pallof", name:"Pallof Press", desc:"Banda o polea lateral. Presionar al frente sin rotar torso ni cadera.", type:"operative", labels:["No controla la carga","Dificultad clara","Rotación moderada","Mínima oscilación","Sin rotación ni compensación"] }
+  ]},
+  { id:"fuerza", name:"Fuerza", tests:[
+    { id:"cmj", name:"Salto vertical — CMJ", desc:"Countermovement Jump con manos en cadera.", type:"numeric", unit:"cm", scoring:{ M:[{min:40,p:4},{min:35,p:3},{min:30,p:2},{min:25,p:1},{min:0,p:0}], F:[{min:30,p:4},{min:25,p:3},{min:20,p:2},{min:15,p:1},{min:0,p:0}] } },
+    { id:"sentadilla", name:"Sentadilla", desc:"Patrón base de fuerza. Calidad técnica, profundidad y estabilidad.", type:"operative", labels:["Patrón deficiente / doloroso","Patrón pobre","Compensaciones moderadas","Leve fallo técnico","Patrón limpio, estable, buena profundidad"] },
+    { id:"handgrip_d", name:"Handgrip dominante", desc:"Dinamómetro, brazo al lado del cuerpo. Mejor de 2-3 intentos.", type:"numeric", unit:"kg", scoring:{ M:[{min:50,p:4},{min:45,p:3},{min:40,p:2},{min:35,p:1},{min:0,p:0}], F:[{min:32,p:4},{min:28,p:3},{min:24,p:2},{min:20,p:1},{min:0,p:0}] } },
+    { id:"handgrip_nd", name:"Handgrip no dominante", desc:"Misma posición. Diferencia >10% entre manos = vigilar.", type:"numeric", unit:"kg", scoring:{ M:[{min:47,p:4},{min:42,p:3},{min:37,p:2},{min:32,p:1},{min:0,p:0}], F:[{min:30,p:4},{min:26,p:3},{min:22,p:2},{min:18,p:1},{min:0,p:0}] } },
+    { id:"lanz_rotacional", name:"Lanzamiento rotacional", desc:"Balón medicinal desde posición estandarizada. Distancia, técnica y explosividad.", type:"operative", labels:["Muy bajo / técnica deficiente","Bajo","Medio","Bueno","Claramente explosivo, gran distancia"] }
+  ]},
+  { id:"agilidad", name:"Agilidad", tests:[
+    { id:"test_5105", name:"Test 5-10-5", desc:"5m a un lado, 10m al contrario, 5m vuelta. Cambio de dirección y frenada.", type:"numeric", unit:"seg", inverse:true, scoring:{ M:[{max:4.6,p:4},{max:4.9,p:3},{max:5.2,p:2},{max:5.5,p:1},{max:99,p:0}], F:[{max:5.0,p:4},{max:5.3,p:3},{max:5.6,p:2},{max:5.9,p:1},{max:99,p:0}] } },
+    { id:"reaccion", name:"Reacción simple", desc:"Respuesta rápida a estímulo simple. Fijar siempre la misma variante.", type:"operative", labels:["Muy lenta o inconsistente","Lenta","Media","Buena","Muy rápida y estable"] },
+    { id:"t_test", name:"T-Test adaptado", desc:"Desplazamiento multidireccional frontal-lateral-retroceso.", type:"numeric", unit:"seg", inverse:true, scoring:{ M:[{max:9.5,p:4},{max:10.2,p:3},{max:11.0,p:2},{max:11.8,p:1},{max:99,p:0}], F:[{max:10.5,p:4},{max:11.2,p:3},{max:12.0,p:2},{max:12.8,p:1},{max:99,p:0}] } },
+    { id:"line_hops", name:"Line Hops (15 seg)", desc:"Saltos rápidos adelante-atrás sobre línea. Contar contactos en 15 segundos.", type:"numeric", unit:"reps", scoring:{ M:[{min:40,p:4},{min:35,p:3},{min:30,p:2},{min:25,p:1},{min:0,p:0}], F:[{min:40,p:4},{min:35,p:3},{min:30,p:2},{min:25,p:1},{min:0,p:0}] } },
+    { id:"test_v", name:"Test en V (pádel)", desc:"Desplazamiento específico en patrón V. Benchmark interno.", type:"operative", labels:["Muy lenta o desorganizada","Lenta","Media","Buena","Muy rápida, limpia y específica"] }
+  ]},
+  { id:"capacidad", name:"Capacidad", tests:[
+    { id:"hrv", name:"HRV Status", desc:"Medición matutina. Comparar con tendencia basal.", type:"operative", labels:["Muy alterado / mala recuperación","Señal de fatiga","Zona media, cierta carga","Ligeramente por debajo del óptimo","Verde / readiness alta"] },
+    { id:"hrr", name:"HRR 1 min", desc:"Diferencia FC al terminar esfuerzo vs 1 min después.", type:"numeric", unit:"lpm", scoring:{ M:[{min:30,p:4},{min:25,p:3},{min:20,p:2},{min:15,p:1},{min:0,p:0}], F:[{min:30,p:4},{min:25,p:3},{min:20,p:2},{min:15,p:1},{min:0,p:0}] } },
+    { id:"energia", name:"Energía funcional", desc:"Observación en calentamiento: reactividad, viveza, ligereza.", type:"operative", labels:["Muy apagado o fatigado","Lento / pesado","Normal","Buen nivel","Explosivo, suelto, reactivo"] },
+    { id:"rec_series", name:"Recuperación entre series", desc:"Respiración, tiempo en recomponerse y calidad del siguiente esfuerzo.", type:"operative", labels:["Muy lenta, baja del rendimiento","Recuperación lenta","Recuperación media","Recupera bien","Recupera muy rápido y mantiene calidad"] },
+    { id:"rpe", name:"RPE Final", desc:"Percepción de esfuerzo 1-10 al terminar la sesión.", type:"numeric", unit:"RPE", inverse:true, scoring:{ M:[{max:6,p:4},{max:7,p:3},{max:8,p:2},{max:9,p:1},{max:10,p:0}], F:[{max:6,p:4},{max:7,p:3},{max:8,p:2},{max:9,p:1},{max:10,p:0}] } }
+  ]}
+];
+
+// ============================================================
+// ESTADO
+// ============================================================
+let S = { players:[], currentPlayer:null, currentEval:{}, currentObs:{}, currentBlock:0, gender:'M', savePlayer:true, radarChart:null, lastResultPlayerId:null, lastBlockScores:[], lastTotal:0, lastAIReport:'' };
+
+function init() { S.players = JSON.parse(localStorage.getItem('rpl_players')||'[]'); renderDashboard(); }
+
+// ============================================================
+// DASHBOARD
+// ============================================================
+function renderDashboard() {
+  const totalEvals = S.players.reduce((s,p)=>s+(p.evaluations||[]).length,0);
+  const scores = S.players.flatMap(p=>(p.evaluations||[]).map(e=>e.total));
+  const avg = scores.length ? Math.round(scores.reduce((a,b)=>a+b,0)/scores.length) : null;
+  document.getElementById('stat-players').textContent = S.players.length;
+  document.getElementById('stat-evals').textContent = totalEvals;
+  document.getElementById('stat-avg').textContent = avg !== null ? avg : '—';
+  const list = document.getElementById('players-list');
+  if(!S.players.length) { list.innerHTML=`<div class="empty-state"><div class="icon">🎾</div><p>No hay jugadores registrados.<br>Comienza una nueva evaluación.</p></div>`; return; }
+  list.innerHTML = S.players.map(p=>{
+    const last = p.evaluations&&p.evaluations.length ? p.evaluations[p.evaluations.length-1] : null;
+    const scoreHtml = last ? `<div class="score-badge ${scoreClass(last.total)}">${last.total}/100</div>` : `<div style="color:var(--text2);font-size:0.75rem;">Sin evaluaciones</div>`;
+    return `<div class="player-card" onclick="openPlayerHistory('${p.id}')">
+      <div class="player-avatar">${p.name.charAt(0).toUpperCase()}</div>
+      <div><div class="player-name">${p.name}</div><div class="player-meta">${p.sport} · ${p.gender==='M'?'Masculino':'Femenino'} · ${p.evaluations?p.evaluations.length:0} eval.</div></div>
+      <div class="player-score">${scoreHtml}</div>
+    </div>`;
+  }).join('');
+}
+
+function scoreClass(s) { return s>=80?'score-high':s>=60?'score-mid':s>=40?'score-low':'score-bad'; }
+function scoreLevel(s) { return s>=80?'Muy buen nivel — Listo para rendir':s>=60?'Buen nivel con áreas mejorables':s>=40?'Nivel medio-bajo — Limitaciones relevantes':s>=20?'Deficiente — Varias áreas limitantes':'Muy deficiente — Base insuficiente'; }
+function ptsClass(p) { return `pts-${p}`; }
+
+// ============================================================
+// MODAL
+// ============================================================
+let modalSave=true, modalGender='M';
+function openNewPlayerModal() {
+  document.getElementById('inp-name').value='';
+  document.getElementById('inp-sport').value='Pádel';
+  modalSave=true; modalGender='M';
+  ['save-yes','g-male'].forEach(id=>document.getElementById(id).classList.add('active'));
+  ['save-no','g-female'].forEach(id=>document.getElementById(id).classList.remove('active'));
+  document.getElementById('modal-new-player').classList.add('open');
+}
+function closeModal(){document.getElementById('modal-new-player').classList.remove('open');}
+function toggleSave(v){modalSave=v;document.getElementById('save-yes').classList.toggle('active',v);document.getElementById('save-no').classList.toggle('active',!v);}
+function selectGender(g){modalGender=g;document.getElementById('g-male').classList.toggle('active',g==='M');document.getElementById('g-female').classList.toggle('active',g==='F');}
+
+function startEval() {
+  const name = document.getElementById('inp-name').value.trim();
+  const sport = document.getElementById('inp-sport').value;
+  if(!name){alert('Introduce el nombre del jugador');return;}
+  let player = {id:Date.now().toString(),name,sport,gender:modalGender,evaluations:[],save:modalSave};
+  if(modalSave){const ex=S.players.find(p=>p.name.toLowerCase()===name.toLowerCase());if(ex){player=ex;}else{S.players.push(player);savePlayers();}}
+  S.currentPlayer=player; S.currentEval={}; S.currentObs={}; S.currentBlock=0; S.gender=modalGender;
+  closeModal(); renderEval(); showPage('eval');
+}
+
+// ============================================================
+// EVALUACIÓN
+// ============================================================
+function renderEval() {
+  document.getElementById('eval-player-name').textContent=S.currentPlayer.name;
+  document.getElementById('eval-player-meta').textContent=`${S.currentPlayer.sport} · ${S.gender==='M'?'Masculino':'Femenino'}`;
+  renderBlockTabs(); renderTests(); updateProgress();
+}
+function renderBlockTabs(){
+  document.getElementById('block-tabs').innerHTML=BLOCKS.map((b,i)=>{
+    const done=isBlockComplete(i);
+    return `<div class="block-tab ${i===S.currentBlock?'active':''} ${done&&i!==S.currentBlock?'completed':''}" onclick="goBlock(${i})">${i+1}. ${b.name}</div>`;
+  }).join('');
+}
+function isBlockComplete(bi){return BLOCKS[bi].tests.every(t=>S.currentEval[t.id]!==undefined);}
+function goBlock(i){S.currentBlock=i;renderBlockTabs();renderTests();updateProgress();}
+
+function renderTests(){
+  const block=BLOCKS[S.currentBlock];
+  const container=document.getElementById('tests-container');
+  container.innerHTML=`<div class="section-title" style="margin-bottom:16px;">${block.name.toUpperCase()} — ${block.tests.length} tests</div>`+block.tests.map(t=>renderTest(t)).join('');
+  document.getElementById('btn-prev').style.visibility=S.currentBlock===0?'hidden':'visible';
+  document.getElementById('btn-next').textContent=S.currentBlock===BLOCKS.length-1?'Ver resultados →':'Siguiente →';
+}
+
+function renderTest(t){
+  const val=S.currentEval[t.id]; const scored=val!==undefined;
+  const pts=scored?calcScore(t,val,S.gender):null;
+  const obsVal=S.currentObs[t.id]||'';
+  const obsField=`<textarea class="obs-input" rows="2" placeholder="Observaciones (opcional)..." oninput="updateObs('${t.id}',this.value)">${obsVal}</textarea>`;
+  if(t.type==='numeric'){
+    return `<div class="test-card ${scored?'scored':''}" id="card-${t.id}">
+      <div class="test-header"><div class="test-name">${t.name}</div>${scored?`<div class="test-points-badge">${pts}/4</div>`:''}</div>
+      <div class="test-desc">${t.desc}</div>
+      <div class="numeric-input-wrap">
+        <input type="number" step="0.1" value="${scored?val:''}" placeholder="0" oninput="updateTest('${t.id}',this.value)" id="inp-${t.id}">
+        <span class="unit-label">${t.unit}</span>
+      </div>
+      <div class="score-preview" id="prev-${t.id}">${scored?`Puntuación: <span>${pts} pts</span>`:'Introduce un valor para ver la puntuación'}</div>
+      ${obsField}
+    </div>`;
+  } else {
+    return `<div class="test-card ${scored?'scored':''}" id="card-${t.id}">
+      <div class="test-header"><div class="test-name">${t.name}</div>${scored?`<div class="test-points-badge">${val}/4</div>`:''}</div>
+      <div class="test-desc">${t.desc}</div>
+      <div class="op-options">${t.labels.map((l,i)=>`<div class="op-btn ${scored&&val===i?'selected':''}" onclick="updateTest('${t.id}',${i})"><span class="op-num">${i}</span>${l}</div>`).join('')}</div>
+      ${obsField}
+    </div>`;
+  }
+}
+
+function updateObs(id,val){S.currentObs[id]=val;}
+
+function updateTest(id,val){
+  if(val===''||val===null){delete S.currentEval[id];}
+  else{S.currentEval[id]=findTest(id).type==='numeric'?parseFloat(val):parseInt(val);}
+  const t=findTest(id); const card=document.getElementById(`card-${id}`); if(!card||!t)return;
+  const v=S.currentEval[id]; const scored=v!==undefined&&v!=='';
+  card.classList.toggle('scored',scored);
+  if(t.type==='numeric'){
+    const pts=scored?calcScore(t,v,S.gender):null;
+    const prev=document.getElementById(`prev-${id}`);
+    if(prev)prev.innerHTML=scored?`Puntuación: <span>${pts} pts</span>`:'Introduce un valor para ver la puntuación';
+    const badge=card.querySelector('.test-points-badge');
+    if(scored&&!badge)card.querySelector('.test-header').innerHTML+=`<div class="test-points-badge">${pts}/4</div>`;
+    else if(scored&&badge)badge.textContent=`${pts}/4`;
+    else if(!scored&&badge)badge.remove();
+  } else {
+    card.querySelectorAll('.op-btn').forEach((btn,i)=>btn.classList.toggle('selected',scored&&v===i));
+    const badge=card.querySelector('.test-points-badge');
+    if(scored&&!badge)card.querySelector('.test-header').innerHTML+=`<div class="test-points-badge">${v}/4</div>`;
+    else if(scored&&badge)badge.textContent=`${v}/4`;
+  }
+  updateProgress(); renderBlockTabs();
+}
+
+function findTest(id){for(const b of BLOCKS){const t=b.tests.find(t=>t.id===id);if(t)return t;}return null;}
+function calcScore(t,val,gender){
+  const g=gender||'M';
+  if(t.inverse){for(const r of t.scoring[g]){if(val<=r.max)return r.p;}return 0;}
+  else{for(const r of t.scoring[g]){if(val>=r.min)return r.p;}return 0;}
+}
+function updateProgress(){
+  const total=BLOCKS.reduce((s,b)=>s+b.tests.length,0);
+  const done=Object.keys(S.currentEval).length;
+  const pct=Math.round(done/total*100);
+  document.getElementById('progress-fill').style.width=pct+'%';
+  document.getElementById('progress-pct').textContent=pct+'%';
+  document.getElementById('progress-text').textContent=`Bloque ${S.currentBlock+1} de ${BLOCKS.length} — ${done}/${total} tests`;
+}
+function nextBlock(){if(S.currentBlock<BLOCKS.length-1){S.currentBlock++;renderBlockTabs();renderTests();updateProgress();window.scrollTo(0,0);}else{showResults();}}
+function prevBlock(){if(S.currentBlock>0){S.currentBlock--;renderBlockTabs();renderTests();updateProgress();window.scrollTo(0,0);}}
+
+// ============================================================
+// RESULTADOS
+// ============================================================
+function showResults(){
+  const blockScores=BLOCKS.map(b=>{
+    const pts=b.tests.reduce((s,t)=>{
+      const v=S.currentEval[t.id]; if(v===undefined)return s;
+      return s+(t.type==='operative'?v:calcScore(t,v,S.gender));
+    },0);
+    return {id:b.id,name:b.name,score:pts,max:20};
+  });
+  const total=blockScores.reduce((s,b)=>s+b.score,0);
+  S.lastBlockScores=blockScores; S.lastTotal=total;
+
+  const evalData={id:Date.now().toString(),date:new Date().toLocaleDateString('es-ES'),gender:S.gender,data:{...S.currentEval},obs:{...S.currentObs},blockScores,total};
+  if(S.currentPlayer.save!==false){
+    const p=S.players.find(pl=>pl.id===S.currentPlayer.id);
+    if(p){if(!p.evaluations)p.evaluations=[];p.evaluations.push(evalData);savePlayers();}
+  }
+  S.lastResultPlayerId=S.currentPlayer.id;
+
+  document.getElementById('res-score').textContent=total;
+  document.getElementById('res-level').textContent=scoreLevel(total);
+  document.getElementById('res-player-name').textContent=`${S.currentPlayer.name} · ${S.currentPlayer.sport}`;
+  document.getElementById('res-date').textContent=new Date().toLocaleDateString('es-ES',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+
+  // Bloques resumen
+  document.getElementById('blocks-breakdown').innerHTML=blockScores.map(b=>`
+    <div class="block-result">
+      <div class="block-result-name">${b.name}</div>
+      <div class="block-result-score">${b.score}</div>
+      <div style="font-size:0.65rem;color:var(--text2);">/20</div>
+      <div class="block-result-bar"><div class="block-result-fill" style="width:${b.score/20*100}%"></div></div>
+    </div>`).join('');
+
+  // Radar
+  if(S.radarChart){S.radarChart.destroy();S.radarChart=null;}
+  const ctx=document.getElementById('radarChart').getContext('2d');
+  S.radarChart=new Chart(ctx,{type:'radar',data:{labels:blockScores.map(b=>b.name),datasets:[{label:'Racket Score',data:blockScores.map(b=>b.score),backgroundColor:'rgba(0,170,255,0.15)',borderColor:'#00AAFF',pointBackgroundColor:'#00D4FF',pointBorderColor:'#fff',pointRadius:5,borderWidth:2}]},options:{responsive:true,scales:{r:{min:0,max:20,grid:{color:'rgba(0,170,255,0.15)'},angleLines:{color:'rgba(0,170,255,0.2)'},ticks:{color:'#8899bb',backdropColor:'transparent',stepSize:5},pointLabels:{color:'#e8f0ff',font:{size:11}}}},plugins:{legend:{display:false}}}});
+
+  // Desglose por bloque
+  document.getElementById('blocks-detail').innerHTML=BLOCKS.map((b,bi)=>{
+    const bs=blockScores[bi];
+    const testsHtml=b.tests.map(t=>{
+      const v=S.currentEval[t.id]; if(v===undefined)return '';
+      const pts=t.type==='operative'?v:calcScore(t,v,S.gender);
+      const displayVal=t.type==='operative'?t.labels[v]:`${v} ${t.unit}`;
+      const obs=S.currentObs[t.id];
+      return `<div>
+        <div class="test-row">
+          <div class="test-row-pts ${ptsClass(pts)}">${pts}</div>
+          <div class="test-row-name">${t.name}</div>
+          <div class="test-row-val">${displayVal}</div>
+        </div>
+        ${obs?`<div class="test-obs">📝 ${obs}</div>`:''}
+      </div>`;
+    }).join('');
+    return `<div class="block-detail">
+      <div class="block-detail-header" onclick="toggleDetail('detail-${b.id}')">
+        <div>
+          <div class="block-detail-name">${b.name}</div>
+          <div class="block-detail-bar"><div class="block-detail-fill" style="width:${bs.score/20*100}%"></div></div>
+        </div>
+        <div class="block-detail-score">${bs.score}/20</div>
+      </div>
+      <div class="block-detail-body" id="detail-${b.id}">${testsHtml}</div>
+    </div>`;
+  }).join('');
+
+  // Reset AI
+  document.getElementById('ai-loading').style.display='none';
+  document.getElementById('ai-report-container').style.display='none';
+  document.getElementById('btn-pdf').style.display='none';
+  S.lastAIReport='';
+
+  showPage('results');
+  // Lanzar análisis IA
+  setTimeout(()=>runAIAnalysis(blockScores,total),400);
+}
+
+function toggleDetail(id){const el=document.getElementById(id);el.classList.toggle('open');}
+
+// ============================================================
+// IA ANALYSIS
+// ============================================================
+async function runAIAnalysis(blockScores, total) {
+  const loadingEl=document.getElementById('ai-loading');
+  const reportEl=document.getElementById('ai-report-container');
+  loadingEl.style.display='block';
+
+  const loadingMsgs=['Analizando resultados test a test...','Detectando asimetrías y banderas rojas...','Identificando fortalezas y áreas críticas...','Generando informe personalizado...'];
+  let msgIdx=0;
+  const msgInterval=setInterval(()=>{
+    msgIdx=(msgIdx+1)%loadingMsgs.length;
+    document.getElementById('ai-loading-text').textContent=loadingMsgs[msgIdx];
+  },2000);
+
+  // Construir datos completos para la IA
+  const testData = BLOCKS.map(b=>{
+    return b.tests.map(t=>{
+      const v=S.currentEval[t.id];
+      if(v===undefined)return null;
+      const pts=t.type==='operative'?v:calcScore(t,v,S.gender);
+      const displayVal=t.type==='operative'?t.labels[v]:`${v} ${t.unit}`;
+      const obs=S.currentObs[t.id]||'';
+      return `- ${t.name}: ${displayVal} → ${pts}/4 pts${obs?` (Obs: ${obs})`:''}`;
+    }).filter(Boolean).join('\n');
+  });
+
+  const prompt = `Eres un experto en rendimiento deportivo especializado en deportes de raqueta (pádel, tenis, squash). Has evaluado al siguiente jugador con el sistema Racket Performance Lab y debes generar un informe de análisis profundo, específico y personalizado.
+
+DATOS DEL JUGADOR:
+- Nombre: ${S.currentPlayer.name}
+- Deporte: ${S.currentPlayer.sport}
+- Género: ${S.gender==='M'?'Masculino':'Femenino'}
+- RACKET SCORE TOTAL: ${total}/100 → ${scoreLevel(total)}
+
+PUNTUACIÓN POR BLOQUES:
+${blockScores.map(b=>`- ${b.name}: ${b.score}/20`).join('\n')}
+
+RESULTADOS TEST A TEST:
+
+BLOQUE 1 — MOVILIDAD:
+${testData[0]||'Sin datos'}
+
+BLOQUE 2 — CORE Y ESTABILIDAD:
+${testData[1]||'Sin datos'}
+
+BLOQUE 3 — FUERZA Y POTENCIA:
+${testData[2]||'Sin datos'}
+
+BLOQUE 4 — AGILIDAD:
+${testData[3]||'Sin datos'}
+
+BLOQUE 5 — CAPACIDAD FÍSICA:
+${testData[4]||'Sin datos'}
+
+INSTRUCCIONES PARA EL INFORME:
+Genera un informe en español dividido EXACTAMENTE en estas 5 secciones con estos títulos exactos:
+
+###RESUMEN_EJECUTIVO###
+Párrafo de 3-4 líneas que resuma el perfil global del jugador de forma directa y específica. Menciona el score, el deporte y el estado general real.
+
+###FORTALEZAS###
+Lista de 3-5 fortalezas CONCRETAS nombrando tests específicos con sus puntuaciones. No generalices. Explica por qué esa fortaleza es relevante para el deporte del jugador.
+
+###BANDERAS_ROJAS###
+Lista de alertas concretas. Incluye: tests con 0-1 punto, asimetrías detectadas (ej: plancha lateral derecha vs izquierda, handgrip dominante vs no dominante), contradicciones entre bloques. Sé específico con nombres de tests y valores.
+
+###PLAN_PRIORIDADES###
+Lista ordenada de 4-6 prioridades de trabajo, de más a menos urgente. Cada una con el test/área concreta y una acción específica de mejora. Que sea accionable, no genérico.
+
+###ANALISIS_DETALLADO###
+Análisis bloque a bloque (Movilidad, Core, Fuerza, Agilidad, Capacidad). Para cada bloque: qué destaca positivo, qué falla, relaciones entre tests dentro del bloque y cómo afecta al rendimiento específico en ${S.currentPlayer.sport}. Sé analítico y específico.
+
+Responde SOLO con las 5 secciones. Usa lenguaje técnico pero comprensible. Sé directo, no uses frases vacías. Este informe lo leerá el entrenador y el jugador.`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:1000, messages:[{role:'user',content:prompt}] })
+    });
+    const data = await res.json();
+    const text = data.content?.find(c=>c.type==='text')?.text || '';
+    clearInterval(msgInterval);
+    loadingEl.style.display='none';
+    S.lastAIReport=text;
+    renderAIReport(text);
+    document.getElementById('btn-pdf').style.display='inline-block';
+  } catch(e) {
+    clearInterval(msgInterval);
+    loadingEl.style.display='none';
+    reportEl.style.display='block';
+    reportEl.innerHTML=`<div class="ai-report"><div class="ai-report-body"><div style="color:var(--text2);font-size:0.85rem;">No se pudo conectar con el sistema de análisis IA. Comprueba tu conexión.</div></div></div>`;
+  }
+}
+
+function renderAIReport(text) {
+  const reportEl=document.getElementById('ai-report-container');
+  const sections={
+    'RESUMEN_EJECUTIVO':{title:'Resumen ejecutivo',icon:'📊'},
+    'FORTALEZAS':{title:'Fortalezas del jugador',icon:'💪'},
+    'BANDERAS_ROJAS':{title:'Alertas y banderas rojas',icon:'🚨'},
+    'PLAN_PRIORIDADES':{title:'Plan de prioridades',icon:'🎯'},
+    'ANALISIS_DETALLADO':{title:'Análisis detallado por bloque',icon:'🔬'}
+  };
+
+  let html=`<div class="ai-report">
+    <div class="ai-report-header">
+      <div class="ai-icon">🤖</div>
+      <div>
+        <div class="ai-report-title">Análisis IA — Informe completo</div>
+        <div class="ai-report-sub">Generado por Racket Performance Lab · ${S.currentPlayer.name}</div>
+      </div>
+    </div>
+    <div class="ai-report-body">`;
+
+  for(const [key,meta] of Object.entries(sections)){
+    const regex=new RegExp(`###${key}###([\\s\\S]*?)(?=###[A-Z_]+###|$)`);
+    const match=text.match(regex);
+    const content=match?match[1].trim():'No disponible.';
+    html+=`<div class="ai-section">
+      <div class="ai-section-title">${meta.icon} ${meta.title}</div>
+      <div class="ai-text">${content}</div>
+    </div>`;
+  }
+
+  html+=`</div></div>`;
+  reportEl.innerHTML=html;
+  reportEl.style.display='block';
+  S.lastAIReport=text;
+}
+
+// ============================================================
+// PDF EXPORT
+// ============================================================
+async function exportPDF() {
+  const btn=document.getElementById('btn-pdf');
+  btn.disabled=true; btn.textContent='Generando PDF...';
+  
+  try {
+    // Cargar jsPDF dinámicamente
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+    const {jsPDF}=window.jspdf;
+    const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+    const W=210, M=18, CW=W-M*2;
+    let y=0;
+
+    const addPage=()=>{doc.addPage();y=18;};
+    const checkY=(h=10)=>{if(y+h>280)addPage();};
+
+    // Colores
+    const dark=[5,8,16], accent=[0,170,255], white=[255,255,255], gray=[136,153,187], light=[232,240,255], red=[255,68,102], green=[0,200,130], yellow=[255,204,0];
+
+    // PORTADA
+    doc.setFillColor(...dark); doc.rect(0,0,W,297,'F');
+    // Franja superior
+    doc.setFillColor(0,50,100); doc.rect(0,0,W,60,'F');
+    doc.setFillColor(...accent); doc.rect(0,58,W,2,'F');
+    // Título
+    doc.setFont('helvetica','bold'); doc.setFontSize(28); doc.setTextColor(...white);
+    doc.text('RACKET',W/2,28,{align:'center'});
+    doc.setFontSize(14); doc.setTextColor(...accent);
+    doc.text('PERFORMANCE LAB',W/2,38,{align:'center'});
+    doc.setFontSize(8); doc.setTextColor(...gray); doc.setFont('helvetica','normal');
+    doc.text('HIGH PERFORMANCE SYSTEM',W/2,46,{align:'center'});
+    // Info jugador
+    doc.setFillColor(10,15,30); doc.roundedRect(M,70,CW,55,3,3,'F');
+    doc.setDrawColor(...accent); doc.setLineWidth(0.5); doc.roundedRect(M,70,CW,55,3,3,'S');
+    doc.setFont('helvetica','bold'); doc.setFontSize(18); doc.setTextColor(...white);
+    doc.text(S.currentPlayer.name,W/2,88,{align:'center'});
+    doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(...gray);
+    doc.text(`${S.currentPlayer.sport} · ${S.gender==='M'?'Masculino':'Femenino'}`,W/2,96,{align:'center'});
+    doc.text(`Evaluación: ${new Date().toLocaleDateString('es-ES')}`,W/2,103,{align:'center'});
+    // Score hero
+    doc.setFillColor(0,30,70); doc.circle(W/2,145,28,'F');
+    doc.setDrawColor(...accent); doc.setLineWidth(1.5); doc.circle(W/2,145,28,'S');
+    doc.setFont('helvetica','bold'); doc.setFontSize(32); doc.setTextColor(...accent);
+    doc.text(String(S.lastTotal),W/2,152,{align:'center'});
+    doc.setFontSize(10); doc.setTextColor(...gray); doc.setFont('helvetica','normal');
+    doc.text('/100',W/2,160,{align:'center'});
+    doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(...white);
+    doc.text(scoreLevel(S.lastTotal),W/2,172,{align:'center'});
+    // Bloques en portada
+    const bx=M, bw=CW/5-2;
+    S.lastBlockScores.forEach((b,i)=>{
+      const bxPos=bx+i*(bw+2.5);
+      doc.setFillColor(10,20,40); doc.roundedRect(bxPos,185,bw,30,2,2,'F');
+      doc.setDrawColor(0,100,180); doc.roundedRect(bxPos,185,bw,30,2,2,'S');
+      doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.setTextColor(...accent);
+      doc.text(String(b.score),bxPos+bw/2,198,{align:'center'});
+      doc.setFont('helvetica','normal'); doc.setFontSize(6); doc.setTextColor(...gray);
+      doc.text(b.name,bxPos+bw/2,205,{align:'center'});
+      doc.text('/20',bxPos+bw/2,209,{align:'center'});
+    });
+    doc.setFontSize(7); doc.setTextColor(...gray);
+    doc.text('Racket Performance Lab © Sistema de Evaluación Integral',W/2,285,{align:'center'});
+
+    // PÁGINA 2 — DESGLOSE + IA
+    doc.addPage(); y=18;
+    doc.setFillColor(...dark); doc.rect(0,0,W,297,'F');
+
+    // Header pág 2
+    doc.setFillColor(0,30,70); doc.rect(0,0,W,14,'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...accent);
+    doc.text('RACKET PERFORMANCE LAB',M,9);
+    doc.setFont('helvetica','normal'); doc.setTextColor(...gray);
+    doc.text(`${S.currentPlayer.name} · ${new Date().toLocaleDateString('es-ES')}`,W-M,9,{align:'right'});
+    y=22;
+
+    // Desglose tests
+    doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(...accent);
+    doc.text('DESGLOSE POR TEST',M,y); y+=2;
+    doc.setDrawColor(...accent); doc.setLineWidth(0.3); doc.line(M,y,W-M,y); y+=6;
+
+    BLOCKS.forEach(b=>{
+      const bs=S.lastBlockScores.find(x=>x.id===b.id);
+      checkY(30);
+      // Cabecera bloque
+      doc.setFillColor(0,30,60); doc.roundedRect(M,y,CW,8,1,1,'F');
+      doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...white);
+      doc.text(b.name.toUpperCase(),M+4,y+5.5);
+      doc.text(`${bs.score}/20`,W-M-4,y+5.5,{align:'right'});
+      y+=11;
+      b.tests.forEach(t=>{
+        const v=S.currentEval[t.id]; if(v===undefined)return;
+        const pts=t.type==='operative'?v:calcScore(t,v,S.gender);
+        const displayVal=t.type==='operative'?t.labels[v]:`${v} ${t.unit}`;
+        checkY(8);
+        // Color punto
+        const ptColor=pts>=3?green:pts>=2?yellow:red;
+        doc.setFillColor(...ptColor); doc.circle(M+3,y+2.5,2,'F');
+        doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...ptColor);
+        doc.text(String(pts),M+3,y+3.8,{align:'center'});
+        doc.setFont('helvetica','normal'); doc.setTextColor(...light);
+        doc.text(t.name,M+8,y+3.5);
+        doc.setTextColor(...gray);
+        doc.text(displayVal,W-M,y+3.5,{align:'right'});
+        y+=7;
+        const obs=S.currentObs[t.id];
+        if(obs){
+          checkY(6);
+          doc.setFontSize(6); doc.setTextColor(100,120,150);
+          doc.text(`  Obs: ${obs}`,M+8,y+2);
+          y+=5;
+        }
+      });
+      y+=3;
+    });
+
+    // PÁGINA 3 — ANÁLISIS IA
+    if(S.lastAIReport){
+      doc.addPage(); y=18;
+      doc.setFillColor(...dark); doc.rect(0,0,W,297,'F');
+      doc.setFillColor(0,30,70); doc.rect(0,0,W,14,'F');
+      doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...accent);
+      doc.text('RACKET PERFORMANCE LAB',M,9);
+      doc.setFont('helvetica','normal'); doc.setTextColor(...gray);
+      doc.text(`Informe IA · ${S.currentPlayer.name}`,W-M,9,{align:'right'});
+      y=22;
+
+      doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(...accent);
+      doc.text('ANÁLISIS IA — INFORME COMPLETO',M,y); y+=2;
+      doc.setDrawColor(...accent); doc.setLineWidth(0.3); doc.line(M,y,W-M,y); y+=7;
+
+      const sections=[
+        {key:'RESUMEN_EJECUTIVO',title:'RESUMEN EJECUTIVO'},
+        {key:'FORTALEZAS',title:'FORTALEZAS'},
+        {key:'BANDERAS_ROJAS',title:'ALERTAS Y BANDERAS ROJAS'},
+        {key:'PLAN_PRIORIDADES',title:'PLAN DE PRIORIDADES'},
+        {key:'ANALISIS_DETALLADO',title:'ANÁLISIS DETALLADO POR BLOQUE'}
+      ];
+
+      for(const s of sections){
+        const regex=new RegExp(`###${s.key}###([\\s\\S]*?)(?=###[A-Z_]+###|$)`);
+        const match=S.lastAIReport.match(regex);
+        const content=match?match[1].trim():'';
+        if(!content)continue;
+        checkY(16);
+        doc.setFillColor(0,40,80); doc.roundedRect(M,y,CW,8,1,1,'F');
+        doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...accent);
+        doc.text(s.title,M+4,y+5.5); y+=12;
+        // Texto párrafo a párrafo
+        const lines=doc.splitTextToSize(content,CW);
+        doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(...light);
+        for(const line of lines){
+          checkY(5);
+          doc.text(line,M,y); y+=4.5;
+        }
+        y+=4;
+      }
+      // Footer
+      doc.setFontSize(7); doc.setTextColor(...gray);
+      doc.text('Racket Performance Lab © Informe generado con análisis de inteligencia artificial',W/2,285,{align:'center'});
+    }
+
+    doc.save(`RPL_${S.currentPlayer.name.replace(/\s+/g,'_')}_${new Date().toLocaleDateString('es-ES').replace(/\//g,'-')}.pdf`);
+  } catch(e){
+    alert('Error al generar PDF: '+e.message);
+  }
+  btn.disabled=false; btn.textContent='⬇ Exportar PDF';
+}
+
+function loadScript(src){
+  return new Promise((res,rej)=>{
+    if(document.querySelector(`script[src="${src}"]`)){res();return;}
+    const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=rej; document.head.appendChild(s);
+  });
+}
+
+// ============================================================
+// HISTORIAL
+// ============================================================
+function openPlayerHistory(id){
+  const p=S.players.find(pl=>pl.id===id); if(!p)return;
+  S.lastResultPlayerId=id; renderHistory(p); showPage('history');
+}
+function viewPlayerHistory(){
+  const p=S.players.find(pl=>pl.id===S.lastResultPlayerId); if(!p){showPage('dashboard');return;}
+  renderHistory(p); showPage('history');
+}
+function renderHistory(p){
+  document.getElementById('hist-player-name').textContent=p.name;
+  document.getElementById('hist-player-meta').textContent=`${p.sport} · ${p.gender==='M'?'Masculino':'Femenino'}`;
+  const list=document.getElementById('history-list');
+  if(!p.evaluations||!p.evaluations.length){list.innerHTML=`<div class="empty-state"><div class="icon">📊</div><p>Sin evaluaciones registradas.</p></div>`;return;}
+  list.innerHTML=[...p.evaluations].reverse().map((e,i)=>`
+    <div class="history-card">
+      <div>
+        <div class="player-name">Evaluación #${p.evaluations.length-i}</div>
+        <div class="history-date" style="font-size:0.75rem;color:var(--text2);">${e.date}</div>
+        <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+          ${e.blockScores.map(b=>`<span style="font-size:0.65rem;padding:2px 8px;border-radius:10px;background:var(--accent-glow);border:1px solid var(--border);color:var(--accent2);">${b.name}: ${b.score}/20</span>`).join('')}
+        </div>
+      </div>
+      <div style="margin-left:auto;"><div class="score-badge ${scoreClass(e.total)}">${e.total}/100</div></div>
+    </div>`).join('');
+}
+
+// ============================================================
+// UTILS
+// ============================================================
+function showPage(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById(`page-${id}`).classList.add('active');
+  window.scrollTo(0,0);
+  if(id==='dashboard')renderDashboard();
+}
+function savePlayers(){localStorage.setItem('rpl_players',JSON.stringify(S.players));}
+
+init();
+</script>
+</body>
+</html>
