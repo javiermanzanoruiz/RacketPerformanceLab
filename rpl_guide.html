@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RPL — Guía del Sistema</title>
+<style>
+:root{--bg:#050810;--bg2:#0a0f1e;--accent:#00AAFF;--accent2:#00D4FF;--text:#e8f0ff;--text2:#8899bb;--border:rgba(0,170,255,0.2);}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;}
+.container{max-width:600px;width:100%;text-align:center;}
+.logo{font-size:1.4rem;font-weight:900;letter-spacing:4px;text-transform:uppercase;background:linear-gradient(90deg,#fff,var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:6px;}
+.sub{font-size:0.6rem;letter-spacing:4px;color:var(--accent);text-transform:uppercase;margin-bottom:48px;}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:32px;margin-bottom:20px;text-align:left;position:relative;overflow:hidden;}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);}
+.card-title{font-size:0.8rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--accent2);margin-bottom:16px;}
+.includes{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:24px;}
+.include-item{display:flex;align-items:center;gap:10px;font-size:0.82rem;color:var(--text2);}
+.include-item span{font-size:1rem;}
+.btn{background:linear-gradient(135deg,var(--accent),#0055cc);color:#fff;border:none;border-radius:10px;padding:16px 36px;font-size:0.9rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;cursor:pointer;box-shadow:0 0 30px rgba(0,170,255,0.3);transition:all 0.2s;width:100%;}
+.btn:hover{transform:translateY(-2px);box-shadow:0 0 40px rgba(0,170,255,0.5);}
+.btn:disabled{opacity:0.5;cursor:not-allowed;transform:none;}
+.status{font-size:0.75rem;color:var(--text2);margin-top:16px;min-height:20px;letter-spacing:1px;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.4;}}
+.pulsing{animation:pulse 1.5s infinite;}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="logo">Racket Performance Lab</div>
+  <div class="sub">Guía oficial del sistema</div>
+
+  <div class="card">
+    <div class="card-title">📘 Guía completa del sistema</div>
+    <div style="font-size:0.85rem;color:var(--text2);line-height:1.7;margin-bottom:20px;">
+      Documento oficial de Racket Performance Lab con toda la metodología, referencias de evaluación e interpretación de resultados. Diseñado para entrenadores y jugadores que quieran entender el sistema en profundidad.
+    </div>
+    <div class="includes">
+      <div class="include-item"><span>🎯</span> Filosofía del sistema</div>
+      <div class="include-item"><span>📊</span> Escala de puntuación</div>
+      <div class="include-item"><span>🦵</span> Bloque Movilidad</div>
+      <div class="include-item"><span>💪</span> Bloque Core</div>
+      <div class="include-item"><span>⚡</span> Bloque Fuerza</div>
+      <div class="include-item"><span>🏃</span> Bloque Agilidad</div>
+      <div class="include-item"><span>❤️</span> Bloque Capacidad</div>
+      <div class="include-item"><span>🏆</span> Interpretación Racket Score</div>
+    </div>
+    <button class="btn" id="btn-gen" onclick="generatePDF()">⬇ Descargar Guía PDF</button>
+    <div class="status" id="status"></div>
+  </div>
+
+  <div style="font-size:0.7rem;color:var(--text2);letter-spacing:1px;">
+    Racket Performance Lab © Sistema de Evaluación Integral para Deportes de Raqueta
+  </div>
+</div>
+
+<script>
+async function generatePDF(){
+  const btn=document.getElementById('btn-gen');
+  const status=document.getElementById('status');
+  btn.disabled=true;
+  const msgs=['Cargando motor PDF...','Construyendo portada...','Redactando bloques...','Añadiendo referencias...','Finalizando documento...'];
+  let mi=0;
+  status.textContent=msgs[0];status.classList.add('pulsing');
+  const iv=setInterval(()=>{mi=(mi+1)%msgs.length;status.textContent=msgs[mi];},1200);
+
+  try{
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+    const {jsPDF}=window.jspdf;
+    const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+    const W=210,M=16,CW=W-M*2;let y=0;
+    const dark=[5,8,16],acc=[0,170,255],acc2=[0,212,255],white=[255,255,255],gray=[136,153,187],light=[210,225,255],
+          red=[255,68,102],green=[0,200,130],yellow=[200,160,0],orange=[200,110,0],bg2=[10,15,30],bg3=[15,22,40];
+
+    const addPage=()=>{
+      doc.addPage();y=0;
+      doc.setFillColor(...dark);doc.rect(0,0,W,297,'F');
+      drawPageHeader();y=22;
+    };
+    const checkY=(h=10)=>{if(y+h>282)addPage();};
+
+    const drawPageHeader=()=>{
+      doc.setFillColor(0,20,60);doc.rect(0,0,W,14,'F');
+      doc.setFillColor(...acc);doc.rect(0,13,W,1,'F');
+      doc.setFont('helvetica','bold');doc.setFontSize(7);doc.setTextColor(...acc);
+      doc.text('RACKET PERFORMANCE LAB',M,9);
+      doc.setFont('helvetica','normal');doc.setTextColor(...gray);
+      doc.text('Guía oficial del sistema — High Performance System',W-M,9,{align:'right'});
+    };
+
+    const sectionHeader=(title,icon='')=>{
+      checkY(18);
+      doc.setFillColor(0,30,70);doc.roundedRect(M,y,CW,10,2,2,'F');
+      doc.setDrawColor(...acc);doc.setLineWidth(0.4);doc.roundedRect(M,y,CW,10,2,2,'S');
+      doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...acc2);
+      doc.text(`${icon} ${title}`.trim(),M+4,y+6.8);
+      y+=14;
+    };
+
+    const subHeader=(title)=>{
+      checkY(12);
+      doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...acc);
+      doc.text(title,M,y);
+      doc.setDrawColor(...acc);doc.setLineWidth(0.2);doc.line(M,y+1.5,W-M,y+1.5);
+      y+=7;
+    };
+
+    const bodyText=(text,indent=0)=>{
+      const lines=doc.splitTextToSize(text,CW-indent);
+      lines.forEach(l=>{checkY(5);doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...light);doc.text(l,M+indent,y);y+=4.8;});
+      y+=1;
+    };
+
+    const bulletPoint=(text,color=light)=>{
+      const lines=doc.splitTextToSize(text,CW-8);
+      checkY(6);
+      doc.setFillColor(...acc);doc.circle(M+2,y-0.5,1,'F');
+      doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(...color);
+      doc.text(lines[0],M+6,y);y+=4.5;
+      for(let i=1;i<lines.length;i++){checkY(5);doc.text(lines[i],M+6,y);y+=4.5;}
+    };
+
+    const scoreRow=(label,val,color=acc)=>{
+      checkY(8);
+      doc.setFillColor(...bg2);doc.roundedRect(M,y-3,CW,7,1,1,'F');
+      doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...color);
+      doc.text(label,M+3,y+1.2);
+      doc.setTextColor(...gray);
+      doc.text(val,W-M-3,y+1.2,{align:'right'});
+      y+=9;
+    };
+
+    const refTable=(rows,g)=>{
+      checkY(rows.length*8+6);
+      const cols=[M,M+20,M+70,M+130];
+      const hdrs=['Pts','Referencia M','Referencia F','Nivel'];
+      // Header tabla
+      doc.setFillColor(0,40,90);doc.rect(M,y,CW,7,'F');
+      doc.setFont('helvetica','bold');doc.setFontSize(7);doc.setTextColor(...acc2);
+      hdrs.forEach((h,i)=>doc.text(h,cols[i]+1,y+4.8));
+      y+=8;
+      rows.forEach((r,ri)=>{
+        const c=r.pts>=3?green:r.pts===2?yellow:r.pts===1?orange:red;
+        doc.setFillColor(ri%2===0?12:8,ri%2===0?18:12,ri%2===0?35:25);
+        doc.rect(M,y,CW,6.5,'F');
+        doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...c);
+        doc.text(String(r.pts),cols[0]+2,y+4.5);
+        doc.setFont('helvetica','normal');doc.setTextColor(...light);
+        doc.text(r.m,cols[1]+1,y+4.5);
+        doc.text(r.f,cols[2]+1,y+4.5);
+        doc.setTextColor(...c);doc.text(r.nivel,cols[3]+1,y+4.5);
+        y+=7;
+      });
+      y+=4;
+    };
+
+    const operativeTable=(labels)=>{
+      checkY(labels.length*7+6);
+      doc.setFillColor(0,40,90);doc.rect(M,y,CW,7,'F');
+      doc.setFont('helvetica','bold');doc.setFontSize(7);doc.setTextColor(...acc2);
+      doc.text('Pts',M+2,y+4.8);doc.text('Descripción',M+18,y+4.8);
+      y+=8;
+      labels.forEach((l,i)=>{
+        const c=i>=3?green:i===2?yellow:i===1?orange:red;
+        doc.setFillColor(i%2===0?12:8,i%2===0?18:12,i%2===0?35:25);
+        doc.rect(M,y,CW,6.5,'F');
+        doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...c);
+        doc.text(String(i),M+4,y+4.5);
+        doc.setFont('helvetica','normal');doc.setTextColor(...light);
+        doc.text(l,M+18,y+4.5);
+        y+=7;
+      });
+      y+=4;
+    };
+
+    // ══════════════════════════════════════
+    // PORTADA
+    // ══════════════════════════════════════
+    doc.setFillColor(...dark);doc.rect(0,0,W,297,'F');
+    // Fondo degradado superior
+    doc.setFillColor(0,15,55);doc.rect(0,0,W,120,'F');
+    doc.setFillColor(...acc);doc.rect(0,118,W,2,'F');
+    // Glow central
+    for(let r=60;r>0;r-=5){
+      const alpha=0.015*(60-r)/60;
+      doc.setFillColor(0,Math.round(170*alpha*10),Math.round(255*alpha*10));
+    }
+    // Logo
+    doc.setFont('helvetica','bold');doc.setFontSize(42);doc.setTextColor(...white);
+    doc.text('RACKET',W/2,45,{align:'center'});
+    doc.setFontSize(18);doc.setTextColor(...acc);
+    doc.text('PERFORMANCE LAB',W/2,60,{align:'center'});
+    doc.setFontSize(8);doc.setTextColor(...gray);doc.setFont('helvetica','normal');
+    doc.text('HIGH PERFORMANCE SYSTEM',W/2,70,{align:'center'});
+    doc.setFontSize(11);doc.setTextColor(...light);doc.setFont('helvetica','bold');
+    doc.text('GUÍA OFICIAL DEL SISTEMA',W/2,85,{align:'center'});
+    doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...gray);
+    doc.text('Manual completo de evaluación y referencia',W/2,93,{align:'center'});
+
+    // Línea decorativa
+    doc.setDrawColor(...acc);doc.setLineWidth(0.5);doc.line(M+20,100,W-M-20,100);
+
+    // Bloques en portada
+    const blocks=[['🦵','Movilidad'],['💪','Core'],['⚡','Fuerza'],['🏃','Agilidad'],['❤️','Capacidad']];
+    const bw=CW/5-3;
+    blocks.forEach((b,i)=>{
+      const bx=M+i*(bw+3.75);
+      doc.setFillColor(0,25,65);doc.roundedRect(bx,130,bw,32,2,2,'F');
+      doc.setDrawColor(0,100,180);doc.setLineWidth(0.4);doc.roundedRect(bx,130,bw,32,2,2,'S');
+      doc.setFontSize(14);doc.text(b[0],bx+bw/2,145,{align:'center'});
+      doc.setFont('helvetica','bold');doc.setFontSize(6);doc.setTextColor(...acc2);
+      doc.text(b[1],bx+bw/2,153,{align:'center'});
+      doc.setFont('helvetica','normal');doc.setTextColor(...gray);
+      doc.text('5 tests',bx+bw/2,158,{align:'center'});
+    });
+
+    // Score info
+    doc.setFillColor(0,20,55);doc.roundedRect(M,172,CW,40,3,3,'F');
+    doc.setDrawColor(...acc);doc.setLineWidth(0.4);doc.roundedRect(M,172,CW,40,3,3,'S');
+    doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...acc2);
+    doc.text('RACKET SCORE — Sistema de puntuación',W/2,182,{align:'center'});
+    doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(...gray);
+    doc.text('5 bloques × 5 tests × 4 puntos máximo = 100 puntos',W/2,190,{align:'center'});
+    const niveles=[['80–100','Muy buen nivel',[0,200,130]],['60–79','Buen nivel',[0,170,255]],['40–59','Nivel medio',[200,160,0]],['20–39','Deficiente',[220,110,0]],['0–19','Muy deficiente',[255,68,102]]];
+    const nw=CW/5-2;
+    niveles.forEach((n,i)=>{
+      const nx=M+i*(nw+2.5);
+      doc.setFillColor(...n[2].map(v=>Math.round(v*0.15)));doc.roundedRect(nx,196,nw,10,1,1,'F');
+      doc.setDrawColor(...n[2]);doc.roundedRect(nx,196,nw,10,1,1,'S');
+      doc.setFont('helvetica','bold');doc.setFontSize(6);doc.setTextColor(...n[2]);
+      doc.text(n[0],nx+nw/2,201,{align:'center'});
+      doc.setFont('helvetica','normal');doc.setTextColor(...gray);doc.setFontSize(5.5);
+      doc.text(n[1],nx+nw/2,205,{align:'center'});
+    });
+
+    doc.setFontSize(7);doc.setTextColor(...gray);
+    doc.text('Racket Performance Lab © Documento oficial del sistema de evaluación',W/2,285,{align:'center'});
+    doc.text(new Date().toLocaleDateString('es-ES',{year:'numeric',month:'long'}),W/2,290,{align:'center'});
+
+    // ══════════════════════════════════════
+    // PÁG 2 — FILOSOFÍA Y PUNTUACIÓN
+    // ══════════════════════════════════════
+    addPage();
+
+    sectionHeader('¿QUÉ ES RACKET PERFORMANCE LAB?','🎯');
+    bodyText('Racket Performance Lab es un sistema de evaluación integral diseñado para medir, interpretar y seguir el estado del jugador en deportes de raqueta (pádel, tenis, squash). No es un test aislado — es un mapa global del estado del jugador.');
+    bodyText('El sistema responde 5 preguntas fundamentales:');
+    bulletPoint('¿Se mueve bien? — Bloque de Movilidad');
+    bulletPoint('¿Controla bien su cuerpo? — Bloque de Core y Estabilidad');
+    bulletPoint('¿Genera fuerza útil? — Bloque de Fuerza y Potencia');
+    bulletPoint('¿Se desplaza y reacciona con eficiencia? — Bloque de Agilidad');
+    bulletPoint('¿Llega fresco, recupera bien y tolera la carga? — Bloque de Capacidad Física');
+    y+=4;
+
+    sectionHeader('ESTRUCTURA DEL SISTEMA','📊');
+    bodyText('La lógica es simple y directa:');
+    const structRows=[
+      ['5 bloques de evaluación','Movilidad, Core, Fuerza, Agilidad, Capacidad'],
+      ['5 tests por bloque','25 tests en total'],
+      ['Puntuación por test','0 a 4 puntos por test'],
+      ['Máximo por bloque','20 puntos'],
+      ['RACKET SCORE total','100 puntos'],
+    ];
+    checkY(structRows.length*8+6);
+    structRows.forEach((r,i)=>{
+      doc.setFillColor(i%2===0?10:7,i%2===0?15:10,i%2===0?32:22);
+      doc.roundedRect(M,y,CW,7,1,1,'F');
+      doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...acc2);
+      doc.text(r[0],M+3,y+4.8);
+      doc.setFont('helvetica','normal');doc.setTextColor(...gray);
+      doc.text(r[1],W-M-3,y+4.8,{align:'right'});
+      y+=8;
+    });
+    y+=4;
+
+    sectionHeader('ESCALA DE PUNTUACIÓN (0–4)','⭐');
+    const scaleRows=[
+      {pts:4,m:'Muy buen nivel',f:'Referencia óptima para el deporte',nivel:'Óptimo'},
+      {pts:3,m:'Buen nivel',f:'Funcional para el rendimiento',nivel:'Bueno'},
+      {pts:2,m:'Nivel medio',f:'Mejorable, no limitante',nivel:'Medio'},
+      {pts:1,m:'Deficiente',f:'Limitante para el rendimiento',nivel:'Bajo'},
+      {pts:0,m:'Muy deficiente',f:'Bandera roja, atención inmediata',nivel:'Crítico'},
+    ];
+    checkY(scaleRows.length*7+14);
+    doc.setFillColor(0,40,90);doc.rect(M,y,CW,7,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(7);doc.setTextColor(...acc2);
+    doc.text('Puntos',M+2,y+4.8);doc.text('Nivel',M+25,y+4.8);doc.text('Descripción',M+70,y+4.8);doc.text('Categoría',M+150,y+4.8);
+    y+=8;
+    scaleRows.forEach((r,i)=>{
+      const c=r.pts>=3?green:r.pts===2?yellow:r.pts===1?orange:red;
+      doc.setFillColor(i%2===0?12:8,i%2===0?18:12,i%2===0?35:25);
+      doc.rect(M,y,CW,6.5,'F');
+      doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...c);
+      doc.text(String(r.pts),M+5,y+4.5);
+      doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(...light);
+      doc.text(r.m,M+25,y+4.5);doc.text(r.f,M+70,y+4.5);
+      doc.setTextColor(...c);doc.text(r.nivel,M+150,y+4.5);
+      y+=7;
+    });
+    y+=6;
+
+    sectionHeader('TIPOS DE TEST','🔬');
+    bodyText('El sistema utiliza dos tipos de tests según la naturaleza de la medición:');
+    checkY(20);
+    doc.setFillColor(0,30,70);doc.roundedRect(M,y,CW/2-3,16,2,2,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...acc2);
+    doc.text('Tests Objetivos (numéricos)',M+4,y+6);
+    doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(...gray);
+    doc.text('Se miden con cm, seg, kg o reps.',M+4,y+11);doc.text('La puntuación es automática.',M+4,y+15);
+    doc.setFillColor(0,30,70);doc.roundedRect(M+CW/2+3,y,CW/2-3,16,2,2,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...acc2);
+    doc.text('Tests Operativos (criterio)',M+CW/2+7,y+6);
+    doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(...gray);
+    doc.text('Se valoran con criterios técnicos',M+CW/2+7,y+11);doc.text('claros de ejecución (0–4).',M+CW/2+7,y+15);
+    y+=22;
+
+    // ══════════════════════════════════════
+    // PÁG 3 — BLOQUE MOVILIDAD
+    // ══════════════════════════════════════
+    addPage();
+    sectionHeader('BLOQUE 1 — MOVILIDAD','🦵');
+    bodyText('Evalúa si el jugador tiene la movilidad necesaria para producir fuerza, rotar, desplazarse y absorber cargas sin compensaciones. Una movilidad limitada compromete la técnica, reduce la eficiencia del movimiento y aumenta el riesgo de lesión.');
+    y+=2;
+
+    subHeader('1.1 Dorsiflexión de tobillo');
+    bodyText('Qué mide: Movilidad del tobillo en flexión dorsal. Clave para frenadas, cambios de dirección, sentadilla y transferencias de fuerza.');
+    bodyText('Cómo: Test rodilla a pared. Talón siempre apoyado. Distancia máxima desde el dedo gordo a la pared sin despegar talón.');
+    refTable([{pts:4,m:'≥ 10 cm',f:'≥ 10 cm',nivel:'Óptimo'},{pts:3,m:'8–9.9 cm',f:'8–9.9 cm',nivel:'Bueno'},{pts:2,m:'6–7.9 cm',f:'6–7.9 cm',nivel:'Medio'},{pts:1,m:'4–5.9 cm',f:'4–5.9 cm',nivel:'Bajo'},{pts:0,m:'< 4 cm',f:'< 4 cm',nivel:'Crítico'}]);
+
+    subHeader('1.2 Flexión de cadera activa');
+    bodyText('Qué mide: Capacidad de elevar la pierna activamente manteniendo control lumbo-pélvico. Útil para sprint, frenada, cambios y mecánica global.');
+    bodyText('Cómo: Decúbito supino, una pierna extendida, la otra se eleva activa con rodilla extendida. Se observa ángulo y control.');
+    refTable([{pts:4,m:'> 90°',f:'> 90°',nivel:'Óptimo'},{pts:3,m:'80–90°',f:'80–90°',nivel:'Bueno'},{pts:2,m:'70–79°',f:'70–79°',nivel:'Medio'},{pts:1,m:'60–69°',f:'60–69°',nivel:'Bajo'},{pts:0,m:'< 60°',f:'< 60°',nivel:'Crítico'}]);
+
+    subHeader('1.3 Rotación torácica en cuadrupedia');
+    bodyText('Qué mide: Movilidad rotacional torácica. Fundamental en golpes, cambios de dirección y transferencia rotacional.');
+    bodyText('Cómo: Cuadrupedia, mano detrás de la cabeza, rotar abriendo codo hacia techo sin colapsar lumbar ni pelvis.');
+    operativeTable(['Muy limitada / dolorosa. No consigue rotar.','Rotación claramente pobre. Recorrido muy corto.','Limitación moderada. Recorrido medio.','Ligera limitación o compensación mínima.','Rotación amplia, limpia, sin compensación. Codo al techo.']);
+
+    subHeader('1.4 Rotación de cadera (int/ext)');
+    bodyText('Qué mide: Rotación interna y externa de cadera. Muy importante en apoyos, cambios, frenadas y secuencias rotacionales.');
+    bodyText('Cómo: Posición 90/90 o sentado con cadera y rodilla a 90°. Se valora movilidad interna y externa. Referencia aproximada: R. interna 30–40°+, R. externa 40–50°+.');
+    operativeTable(['Muy limitada o dolorosa.','Limitación clara en uno o ambos sentidos.','Limitación moderada. Asimetría relevante.','Leve restricción o asimetría leve.','Movilidad completa y equilibrada en ambos sentidos.']);
+
+    subHeader('1.5 Overhead Squat');
+    bodyText('Qué mide: Integración global de movilidad (tobillo, cadera, torácica y hombro) y control postural. Test de referencia global.');
+    bodyText('Cómo: Brazos arriba, sentadilla profunda. Se observa el patrón completo.');
+    operativeTable(['No consigue patrón funcional. Compensaciones muy grandes.','Ejecución muy limitada. Múltiples compensaciones.','Compensaciones moderadas. Profundidad incompleta.','Leves compensaciones. Patrón casi limpio.','Ejecución limpia, buena profundidad, brazos alineados.']);
+
+    // ══════════════════════════════════════
+    // PÁG 4 — CORE Y FUERZA
+    // ══════════════════════════════════════
+    addPage();
+    sectionHeader('BLOQUE 2 — CORE Y ESTABILIDAD','💪');
+    bodyText('Valora la capacidad de estabilizar el tronco y controlar fuerzas, especialmente en anti-extensión y anti-rotación. Un core débil compromete la transferencia de fuerza, la eficiencia del golpe y la salud lumbar.');
+    y+=2;
+
+    subHeader('2.1 Plancha frontal');
+    bodyText('Qué mide: Capacidad de estabilidad anterior y resistencia del core.');
+    bodyText('Cómo: Apoyos en antebrazos y pies, cuerpo alineado. Sin hundir lumbar ni elevar cadera.');
+    refTable([{pts:4,m:'> 60 seg',f:'> 60 seg',nivel:'Óptimo'},{pts:3,m:'45–60 seg',f:'45–60 seg',nivel:'Bueno'},{pts:2,m:'30–44 seg',f:'30–44 seg',nivel:'Medio'},{pts:1,m:'15–29 seg',f:'15–29 seg',nivel:'Bajo'},{pts:0,m:'< 15 seg',f:'< 15 seg',nivel:'Crítico'}]);
+
+    subHeader('2.2–2.3 Plancha lateral (derecha e izquierda)');
+    bodyText('Qué mide: Estabilidad lateral y control del core lateral. Se comparan ambos lados — una diferencia >10–15 seg ya es relevante.');
+    bodyText('Cómo: Apoyo en antebrazo y pies, cuerpo alineado, pelvis estable. Se mide cada lado por separado.');
+    refTable([{pts:4,m:'> 45 seg',f:'> 45 seg',nivel:'Óptimo'},{pts:3,m:'30–45 seg',f:'30–45 seg',nivel:'Bueno'},{pts:2,m:'20–29 seg',f:'20–29 seg',nivel:'Medio'},{pts:1,m:'10–19 seg',f:'10–19 seg',nivel:'Bajo'},{pts:0,m:'< 10 seg',f:'< 10 seg',nivel:'Crítico'}]);
+
+    subHeader('2.4 Deadbug');
+    bodyText('Qué mide: Control lumbo-pélvico dinámico y coordinación contralateral.');
+    bodyText('Cómo: Decúbito supino, mantener zona media estable, mover brazo/pierna contraria sin perder control lumbar.');
+    operativeTable(['Incapaz de mantener control. Arqueo lumbar inmediato.','Compensaciones claras. Pierde posición con frecuencia.','Control irregular. Fallos en algunos movimientos.','Pequeños fallos puntuales. Patrón mayoritariamente limpio.','Patrón perfecto, sin compensaciones, respiración controlada.']);
+
+    subHeader('2.5 Pallof Press');
+    bodyText('Qué mide: Capacidad anti-rotación y control del tronco frente a perturbación lateral.');
+    bodyText('Cómo: Banda o polea lateral. Presionar al frente sin rotar torso ni cadera.');
+    operativeTable(['No controla la carga. Rotación inmediata.','Dificultad clara. Rotación significativa.','Rotación moderada. Control parcial.','Mínima oscilación. Buen control general.','Sin rotación ni compensación. Control total.']);
+
+    sectionHeader('BLOQUE 3 — FUERZA Y POTENCIA','⚡');
+    bodyText('Valora la capacidad de generar fuerza y potencia útil para desplazarse, frenar, acelerar y golpear. Se evalúan tanto patrones de fuerza como potencia explosiva y fuerza de prensión.');
+    y+=2;
+
+    subHeader('3.1 Salto vertical — CMJ');
+    bodyText('Qué mide: Potencia del tren inferior. Refleja la capacidad de producir fuerza explosiva en poco tiempo.');
+    bodyText('Cómo: Countermovement Jump con manos en cadera para estandarizar. Medir altura de salto.');
+    refTable([{pts:4,m:'> 40 cm',f:'> 30 cm',nivel:'Óptimo'},{pts:3,m:'35–40 cm',f:'25–30 cm',nivel:'Bueno'},{pts:2,m:'30–34 cm',f:'20–25 cm',nivel:'Medio'},{pts:1,m:'25–29 cm',f:'15–19 cm',nivel:'Bajo'},{pts:0,m:'< 25 cm',f:'< 15 cm',nivel:'Crítico'}]);
+
+    subHeader('3.2 Sentadilla');
+    bodyText('Qué mide: Patrón base de fuerza, control y capacidad de producir fuerza en cadena inferior.');
+    bodyText('Cómo: Se puntúa por calidad técnica + capacidad de ejecutar patrón profundo y estable. Puede realizarse con carga submáxima o corporal con criterio técnico.');
+    operativeTable(['Patrón claramente deficiente o doloroso.','Patrón pobre. Compensaciones múltiples.','Compensaciones moderadas. Profundidad incompleta.','Leve fallo técnico. Patrón casi correcto.','Patrón limpio, estable, buena profundidad. Sin compensaciones.']);
+
+    // ══════════════════════════════════════
+    // PÁG 5 — FUERZA (cont) Y AGILIDAD
+    // ══════════════════════════════════════
+    addPage();
+
+    subHeader('3.3 Handgrip dominante');
+    bodyText('Qué mide: Fuerza de prensión de la mano dominante. Muy relevante en deportes de raqueta por transferencia al control y output de golpe.');
+    bodyText('Cómo: Dinamómetro, brazo al lado del cuerpo o posición estandarizada. Mejor de 2–3 intentos.');
+    refTable([{pts:4,m:'> 50 kg',f:'> 32 kg',nivel:'Óptimo'},{pts:3,m:'45–50 kg',f:'28–32 kg',nivel:'Bueno'},{pts:2,m:'40–44 kg',f:'24–27 kg',nivel:'Medio'},{pts:1,m:'35–39 kg',f:'20–23 kg',nivel:'Bajo'},{pts:0,m:'< 35 kg',f:'< 20 kg',nivel:'Crítico'}]);
+
+    subHeader('3.4 Handgrip no dominante');
+    bodyText('Qué mide: Asimetría de fuerza de prensión y nivel global. Una diferencia >10% entre manos es una señal de asimetría funcional a vigilar.');
+    refTable([{pts:4,m:'> 47 kg',f:'> 30 kg',nivel:'Óptimo'},{pts:3,m:'42–47 kg',f:'26–30 kg',nivel:'Bueno'},{pts:2,m:'37–41 kg',f:'22–25 kg',nivel:'Medio'},{pts:1,m:'32–36 kg',f:'18–21 kg',nivel:'Bajo'},{pts:0,m:'< 32 kg',f:'< 18 kg',nivel:'Crítico'}]);
+
+    subHeader('3.5 Lanzamiento rotacional');
+    bodyText('Qué mide: Potencia rotacional. Muy transferible a los golpes en tenis/pádel. Refleja la capacidad de generar y transferir energía desde el tren inferior hacia el tren superior.');
+    bodyText('Cómo: Lanzamiento con balón medicinal desde posición estandarizada. Se mide distancia o velocidad. Crear benchmark interno propio con los jugadores evaluados.');
+    operativeTable(['Muy bajo o técnica deficiente. Sin transferencia.','Bajo. Técnica pobre o potencia escasa.','Medio. Distancia y técnica regulares.','Bueno. Buena técnica y potencia aceptable.','Claramente explosivo, gran distancia, buena secuencia rotacional.']);
+    y+=2;
+
+    sectionHeader('BLOQUE 4 — AGILIDAD','🏃');
+    bodyText('Mide aceleración, desaceleración, cambios de dirección, reacción y transferencia a la pista. Es el bloque más específico al deporte y el que más se correlaciona con el rendimiento real en competición.');
+    y+=2;
+
+    subHeader('4.1 Test 5-10-5');
+    bodyText('Qué mide: Cambio de dirección y capacidad de frenada/reaceleración. Muy específico para los desplazamientos de pista.');
+    bodyText('Cómo: 5m a un lado, 10m al lado contrario, 5m de vuelta al punto de inicio. Cronometrado desde salida estática.');
+    refTable([{pts:4,m:'< 4.6 seg',f:'< 5.0 seg',nivel:'Óptimo'},{pts:3,m:'4.6–4.9 seg',f:'5.0–5.3 seg',nivel:'Bueno'},{pts:2,m:'5.0–5.2 seg',f:'5.3–5.6 seg',nivel:'Medio'},{pts:1,m:'5.2–5.5 seg',f:'5.6–5.9 seg',nivel:'Bajo'},{pts:0,m:'> 5.5 seg',f:'> 5.9 seg',nivel:'Crítico'}]);
+
+    subHeader('4.2 Reacción simple');
+    bodyText('Qué mide: Capacidad de responder rápido a un estímulo simple. Muy importante en la velocidad de respuesta a la pelota.');
+    bodyText('Cómo: Estímulo visual con app, salida a señal o toque/reactividad básica. Fijar siempre la misma variante y no cambiarla entre evaluaciones.');
+    operativeTable(['Muy lenta o inconsistente. Variabilidad alta.','Lenta. Tiempo de reacción claramente alto.','Media. Dentro de lo esperado para el nivel.','Buena. Reacción rápida y consistente.','Muy rápida y estable. Tiempo de reacción mínimo.']);
+
+    subHeader('4.3 T-Test adaptado');
+    bodyText('Qué mide: Desplazamiento multidireccional con patrón frontal-lateral-retroceso. Muy específico para los patrones de movimiento en pista.');
+    bodyText('Cómo: Versión adaptada según espacio disponible. Debe mantenerse siempre igual entre evaluaciones para poder comparar.');
+    refTable([{pts:4,m:'< 9.5 seg',f:'< 10.5 seg',nivel:'Óptimo'},{pts:3,m:'9.5–10.2 seg',f:'10.5–11.2 seg',nivel:'Bueno'},{pts:2,m:'10.2–11.0 seg',f:'11.2–12.0 seg',nivel:'Medio'},{pts:1,m:'11.0–11.8 seg',f:'12.0–12.8 seg',nivel:'Bajo'},{pts:0,m:'> 11.8 seg',f:'> 12.8 seg',nivel:'Crítico'}]);
+
+    // ══════════════════════════════════════
+    // PÁG 6 — AGILIDAD (cont) Y CAPACIDAD
+    // ══════════════════════════════════════
+    addPage();
+
+    subHeader('4.4 Line Hops (15 seg)');
+    bodyText('Qué mide: Reactividad, rigidez y capacidad cíclica rápida. Refleja la calidad del ciclo estiramiento-acortamiento (CEA) del tren inferior.');
+    bodyText('Cómo: Saltos rápidos adelante-atrás o laterales sobre una línea. Contar repeticiones (contactos) en 15 segundos.');
+    refTable([{pts:4,m:'> 40 contactos',f:'> 40 contactos',nivel:'Óptimo'},{pts:3,m:'35–40',f:'35–40',nivel:'Bueno'},{pts:2,m:'30–34',f:'30–34',nivel:'Medio'},{pts:1,m:'25–29',f:'25–29',nivel:'Bajo'},{pts:0,m:'< 25',f:'< 25',nivel:'Crítico'}]);
+
+    subHeader('4.5 Test en V (pádel)');
+    bodyText('Qué mide: Desplazamiento específico de pista con patrón útil para pádel. Integra velocidad, cambios de dirección y especificidad del deporte.');
+    bodyText('Cómo: Patrón en V definido, misma distancia y orden siempre, cronometrado. Se recomienda construir benchmark propio con 10–20 jugadores evaluados.');
+    operativeTable(['Muy lenta o desorganizada. Técnica deficiente.','Lenta. Desplazamiento poco eficiente.','Media. Resultado esperado para el nivel.','Buena. Velocidad y calidad de desplazamiento altas.','Muy rápida, limpia y específica. Excelente lectura del patrón.']);
+    y+=2;
+
+    sectionHeader('BLOQUE 5 — CAPACIDAD FÍSICA Y RECOVERY','❤️');
+    bodyText('Este bloque evalúa el estado interno del jugador: recuperación, readiness y tolerancia a la carga. No mide rendimiento en el momento, sino el estado del sistema nervioso y la capacidad de absorber y recuperarse del entrenamiento.');
+    y+=2;
+
+    subHeader('5.1 HRV Status');
+    bodyText('Qué mide: Estado del sistema nervioso autónomo y readiness general. Es el marcador más sensible del estado de recuperación real del jugador.');
+    bodyText('Cómo: Medición matutina con app tipo Elite HRV, HRV4Training o similar. Comparar con tendencia basal del jugador. No interpretar un día aislado — mirar tendencia de varios días.');
+    operativeTable(['Muy alterado / mala recuperación. Bandera roja.','Señal de fatiga. Reducir carga.','Zona media. Cierta carga acumulada.','Ligeramente por debajo del óptimo.','Verde / readiness alta. Buen momento para entrenar fuerte.']);
+
+    subHeader('5.2 Recuperación cardíaca — HRR 1 min');
+    bodyText('Qué mide: Capacidad del sistema cardiovascular y parasimpático para recuperar tras esfuerzo. Indicador de eficiencia cardiovascular y estado del sistema nervioso autónomo.');
+    bodyText('Cómo: Después de esfuerzo estándar, medir FC al terminar y FC 1 minuto después. La diferencia es el HRR. Mantener siempre el mismo protocolo previo.');
+    refTable([{pts:4,m:'> 30 lpm',f:'> 30 lpm',nivel:'Óptimo'},{pts:3,m:'25–30 lpm',f:'25–30 lpm',nivel:'Bueno'},{pts:2,m:'20–24 lpm',f:'20–24 lpm',nivel:'Medio'},{pts:1,m:'15–19 lpm',f:'15–19 lpm',nivel:'Bajo'},{pts:0,m:'< 15 lpm',f:'< 15 lpm',nivel:'Crítico'}]);
+
+    subHeader('5.3 Energía funcional');
+    bodyText('Qué mide: Cómo responde el cuerpo al movimiento real en calentamiento o inicio de sesión. Observación estructurada de reactividad, viveza, ligereza e intención de movimiento. No confundir con motivación.');
+    operativeTable(['Muy apagado o claramente fatigado. Sin respuesta motora.','Lento / pesado. Movimiento trabajoso.','Normal. Respuesta esperada para el día.','Buen nivel. Movimiento fluido y reactivo.','Explosivo, suelto, reactivo. Excelente respuesta motora.']);
+
+    subHeader('5.4 Recuperación entre series');
+    bodyText('Qué mide: Capacidad de recuperar entre esfuerzos repetidos. Muy útil en pista y trabajo interválico.');
+    bodyText('Cómo: Observar respiración, tiempo en recomponerse, calidad del siguiente esfuerzo y lenguaje corporal. Debe evaluarse con criterio fijo y consistente.');
+    operativeTable(['Muy lenta. Baja clara del rendimiento entre series.','Recuperación lenta. Necesita más tiempo del habitual.','Recuperación media. Dentro de lo esperado.','Recupera bien. Listo rápido para el siguiente esfuerzo.','Recupera muy rápido y mantiene calidad constante.']);
+
+    subHeader('5.5 RPE Final');
+    bodyText('Qué mide: Percepción final de esfuerzo/fatiga. Interpretarlo siempre junto al rendimiento real — un RPE alto con buen rendimiento es diferente a un RPE alto con rendimiento bajo.');
+    bodyText('Cómo: Escala 1–10 al final de la sesión de evaluación. No usar como único criterio.');
+    refTable([{pts:4,m:'RPE 5–6',f:'RPE 5–6',nivel:'Óptimo'},{pts:3,m:'RPE 6–7',f:'RPE 6–7',nivel:'Bueno'},{pts:2,m:'RPE 7–8',f:'RPE 7–8',nivel:'Medio'},{pts:1,m:'RPE 8–9',f:'RPE 8–9',nivel:'Bajo'},{pts:0,m:'RPE 9–10',f:'RPE 9–10',nivel:'Crítico'}]);
+
+    // ══════════════════════════════════════
+    // PÁG 7 — INTERPRETACIÓN FINAL
+    // ══════════════════════════════════════
+    addPage();
+
+    sectionHeader('INTERPRETACIÓN DEL RACKET SCORE','🏆');
+    bodyText('El Racket Score es la suma de los 5 bloques y representa el estado global del jugador en un momento determinado. No es un juicio absoluto — es un punto de partida para el trabajo.');
+    y+=4;
+
+    const niveles2=[
+      {range:'80–100',title:'MUY BUEN NIVEL — Listo para rendir',color:green,desc:'El jugador presenta un perfil físico sólido y equilibrado. Está en condiciones óptimas para competir y entrenar con alta intensidad. El trabajo debe enfocarse en el mantenimiento y la mejora de los puntos específicos del deporte.'},
+      {range:'60–79',title:'BUEN NIVEL con áreas mejorables',color:acc,desc:'Perfil funcional con limitaciones concretas. El jugador puede competir y entrenar, pero existen áreas que están restando eficiencia o aumentando el riesgo de lesión. Identificar y priorizar las áreas más limitantes.'},
+      {range:'40–59',title:'NIVEL MEDIO-BAJO — Limitaciones relevantes',color:yellow,desc:'Existen déficits significativos que afectan al rendimiento y/o aumentan el riesgo de lesión. Antes de progresar en intensidad o volumen, es necesario trabajar las bases físicas identificadas.'},
+      {range:'20–39',title:'DEFICIENTE — Varias áreas limitantes',color:orange,desc:'El jugador presenta múltiples déficits que comprometen tanto el rendimiento como la salud. Se requiere un plan de acondicionamiento básico estructurado antes de plantear objetivos de rendimiento.'},
+      {range:'0–19',title:'MUY DEFICIENTE — Base insuficiente',color:red,desc:'Base física claramente insuficiente. La prioridad absoluta es construir los patrones fundamentales de movimiento, fuerza y movilidad antes de cualquier otro objetivo deportivo.'},
+    ];
+
+    niveles2.forEach(n=>{
+      checkY(28);
+      doc.setFillColor(n.color[0]*0.08,n.color[1]*0.08,n.color[2]*0.08);
+      doc.roundedRect(M,y,CW,22,2,2,'F');
+      doc.setDrawColor(...n.color);doc.setLineWidth(0.4);doc.roundedRect(M,y,CW,22,2,2,'S');
+      doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...n.color);
+      doc.text(n.range,M+4,y+7);
+      doc.setFontSize(7.5);doc.setTextColor(...white);
+      doc.text(n.title,M+22,y+7);
+      const dl=doc.splitTextToSize(n.desc,CW-8);
+      doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(...gray);
+      dl.forEach((l,i)=>doc.text(l,M+4,y+13+i*4));
+      y+=26;
+    });
+
+    y+=4;
+    sectionHeader('REGLAS DE ORO DEL SISTEMA','📋');
+    const rules=[
+      'No cambiar los protocolos entre evaluaciones. La comparabilidad es esencial.',
+      'Comparar al jugador consigo mismo, no con otros. El progreso individual es lo que importa.',
+      'Usar observaciones, no solo números. El contexto es parte de la evaluación.',
+      'Registrar asimetrías y compensaciones. Son señales igual de importantes que los números.',
+      'Mirar tendencias, no un dato aislado. Un resultado puntual no define el estado del jugador.',
+      'El HRV y el RPE se interpretan juntos. Un día malo no es una alarma — una semana de señales malas sí.',
+    ];
+    rules.forEach(r=>bulletPoint(r));
+    y+=6;
+
+    sectionHeader('VARIABLES DE MAYOR VALOR PARA SEGUIMIENTO','⭐');
+    bodyText('Dentro del sistema, estas variables son las más potentes para el seguimiento real del progreso:');
+    const vars=[['Dorsiflexión de tobillo','Movilidad base para casi todo movimiento'],['Overhead Squat','Integración global del movimiento'],['Plancha lateral comparada','Asimetría de core lateral'],['CMJ','Potencia explosiva del tren inferior'],['Handgrip D/ND','Fuerza y asimetría de prensión'],['Test 5-10-5','Agilidad específica de pista'],['Test en V','Especificidad pádel'],['HRV','Estado del sistema nervioso'],['HRR 1 min','Capacidad cardiovascular y recuperación'],['RPE Final','Percepción de carga global']];
+    checkY(vars.length*7+8);
+    doc.setFillColor(0,40,90);doc.rect(M,y,CW,7,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(7);doc.setTextColor(...acc2);
+    doc.text('Variable',M+3,y+4.8);doc.text('Por qué es clave',M+80,y+4.8);
+    y+=8;
+    vars.forEach((v,i)=>{
+      doc.setFillColor(i%2===0?10:7,i%2===0?15:10,i%2===0?30:20);
+      doc.rect(M,y,CW,6.5,'F');
+      doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...acc2);
+      doc.text(v[0],M+3,y+4.5);
+      doc.setFont('helvetica','normal');doc.setTextColor(...gray);
+      doc.text(v[1],M+80,y+4.5);
+      y+=7;
+    });
+
+    // ÚLTIMA PÁG — PIE
+    y+=8;checkY(30);
+    doc.setFillColor(0,20,55);doc.roundedRect(M,y,CW,28,3,3,'F');
+    doc.setDrawColor(...acc);doc.setLineWidth(0.4);doc.roundedRect(M,y,CW,28,3,3,'S');
+    doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(...acc2);
+    doc.text('Racket Performance Lab',W/2,y+10,{align:'center'});
+    doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...gray);
+    doc.text('Sistema de Evaluación Integral para Deportes de Raqueta',W/2,y+17,{align:'center'});
+    doc.text('High Performance System',W/2,y+23,{align:'center'});
+    doc.setFontSize(7);doc.setTextColor(70,90,120);
+    doc.text(`Documento generado en ${new Date().toLocaleDateString('es-ES',{year:'numeric',month:'long'})}`,W/2,y+32,{align:'center'});
+
+    clearInterval(iv);
+    doc.save('RPL_Guia_del_Sistema.pdf');
+    status.textContent='✅ PDF generado correctamente';
+    status.classList.remove('pulsing');
+  }catch(e){
+    clearInterval(iv);
+    status.textContent='❌ Error al generar: '+e.message;
+    status.classList.remove('pulsing');
+  }
+  btn.disabled=false;
+}
+
+function loadScript(src){return new Promise((res,rej)=>{if(document.querySelector(`script[src="${src}"]`)){res();return;}const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s);});}
+</script>
+</body>
+</html>
